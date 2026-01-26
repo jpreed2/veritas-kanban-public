@@ -3,7 +3,7 @@
 **Goal:** Complete the backlog - archive management, subtasks, dependencies, and quality-of-life features.
 
 **Started:** 2026-01-26
-**Status:** In Progress
+**Status:** Complete ✅
 
 ---
 
@@ -21,7 +21,7 @@
 | US-708 | Preview mode | ✅ Done | None | Embedded browser for dev server preview |
 | US-709 | Merge conflict resolution | ✅ Done | None | Visual conflict resolver UI |
 | US-710 | Time tracking | ✅ Done | None | Start/stop timer, manual entry, reports |
-| US-711 | Running indicator on cards | ⏳ Todo | None | Spinner/pulse animation when agent running |
+| US-711 | Running indicator on cards | ✅ Done | None | Spinner/pulse animation when agent running |
 
 ---
 
@@ -180,4 +180,14 @@
   - Animated timer icon when running
 - formatDuration and parseDuration utility functions
 
-(Starting Sprint 7)
+**US-711: Running indicator on cards** ✅
+- Visual glow effect on card when agent running (blue ring + shadow)
+- "Agent running" badge with spinning loader icon
+- Shows agent name (Claude, Amp, Copilot, etc.)
+- Tooltip with detailed status
+- Pulsing animation for visibility
+- Easy to spot active work at a glance
+
+---
+
+🎉 **Sprint 7 Complete!** All 11 stories done.

@@ -7,9 +7,17 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { Task, TaskType, TaskPriority } from '@veritas-kanban/shared';
-import { Code, Search, FileText, Zap, Check, Ban, Clock, Timer } from 'lucide-react';
+import { Code, Search, FileText, Zap, Check, Ban, Clock, Timer, Loader2 } from 'lucide-react';
 import { useBulkActions } from '@/hooks/useBulkActions';
 import { formatDuration } from '@/hooks/useTimeTracking';
+
+const agentNames: Record<string, string> = {
+  'claude-code': 'Claude',
+  'amp': 'Amp',
+  'copilot': 'Copilot',
+  'gemini': 'Gemini',
+  'veritas': 'Veritas',
+};
 
 interface TaskCardProps {
   task: Task;
@@ -71,6 +79,8 @@ export function TaskCard({ task, isDragging, onClick, isSelected, isBlocked, blo
     toggleSelect(task.id);
   };
 
+  const isAgentRunning = task.attempt?.status === 'running';
+
   return (
     <TooltipProvider>
       <Tooltip delayDuration={500}>
@@ -88,7 +98,8 @@ export function TaskCard({ task, isDragging, onClick, isSelected, isBlocked, blo
               typeColors[task.type],
               isDragging && 'opacity-50 shadow-lg rotate-2 scale-105',
               isCurrentlyDragging && 'opacity-50',
-              isSelected && 'ring-2 ring-primary border-primary'
+              isSelected && 'ring-2 ring-primary border-primary',
+              isAgentRunning && 'ring-2 ring-blue-500/50 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]'
             )}
           >
             <div className="flex items-start gap-2">
@@ -121,6 +132,21 @@ export function TaskCard({ task, isDragging, onClick, isSelected, isBlocked, blo
             </div>
             
             <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {/* Agent running indicator */}
+              {isAgentRunning && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 flex items-center gap-1 animate-pulse">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {agentNames[task.attempt?.agent || ''] || 'Agent'} running
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="font-medium">Agent Active</p>
+                    <p className="text-sm">{agentNames[task.attempt?.agent || ''] || task.attempt?.agent} is working on this task</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
               {isBlocked && (
                 <Tooltip>
                   <TooltipTrigger asChild>
