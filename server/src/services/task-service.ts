@@ -255,4 +255,68 @@ export class TaskService {
     
     return restoredTask;
   }
+
+  /**
+   * Get projects that are ready to archive (all tasks are done)
+   */
+  async getArchiveSuggestions(): Promise<{ project: string; taskCount: number; tasks: Task[] }[]> {
+    const tasks = await this.listTasks();
+    
+    // Group tasks by project
+    const projectTasks = new Map<string, Task[]>();
+    
+    for (const task of tasks) {
+      if (task.project) {
+        const existing = projectTasks.get(task.project) || [];
+        existing.push(task);
+        projectTasks.set(task.project, existing);
+      }
+    }
+    
+    // Find projects where ALL tasks are done
+    const suggestions: { project: string; taskCount: number; tasks: Task[] }[] = [];
+    
+    for (const [project, projectTaskList] of projectTasks) {
+      const allDone = projectTaskList.every(t => t.status === 'done');
+      if (allDone && projectTaskList.length > 0) {
+        suggestions.push({
+          project,
+          taskCount: projectTaskList.length,
+          tasks: projectTaskList,
+        });
+      }
+    }
+    
+    return suggestions;
+  }
+
+  /**
+   * Archive all tasks in a project
+   */
+  async archiveProject(project: string): Promise<{ archived: number; taskIds: string[] }> {
+    const tasks = await this.listTasks();
+    const projectTasks = tasks.filter(t => t.project === project);
+    
+    if (projectTasks.length === 0) {
+      throw new Error(`No tasks found for project "${project}"`);
+    }
+    
+    // Check all tasks are done
+    const notDone = projectTasks.filter(t => t.status !== 'done');
+    if (notDone.length > 0) {
+      throw new Error(`Cannot archive project: ${notDone.length} task(s) are not done`);
+    }
+    
+    // Archive all tasks
+    const archivedIds: string[] = [];
+    for (const task of projectTasks) {
+      await this.archiveTask(task.id);
+      archivedIds.push(task.id);
+    }
+    
+    return {
+      archived: archivedIds.length,
+      taskIds: archivedIds,
+    };
+  }
 }

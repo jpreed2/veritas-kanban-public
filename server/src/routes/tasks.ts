@@ -102,6 +102,34 @@ router.get('/archived', async (_req, res) => {
   }
 });
 
+// GET /api/tasks/archive/suggestions - Get projects ready to archive
+router.get('/archive/suggestions', async (_req, res) => {
+  try {
+    const suggestions = await taskService.getArchiveSuggestions();
+    res.json(suggestions);
+  } catch (error) {
+    console.error('Error getting archive suggestions:', error);
+    res.status(500).json({ error: 'Failed to get archive suggestions' });
+  }
+});
+
+// POST /api/tasks/archive/project/:project - Archive all tasks in a project
+router.post('/archive/project/:project', async (req, res) => {
+  try {
+    const result = await taskService.archiveProject(req.params.project);
+    
+    // Log activity
+    await activityService.logActivity('project_archived', req.params.project, req.params.project, {
+      taskCount: result.archived,
+    });
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error archiving project:', error);
+    res.status(400).json({ error: error.message || 'Failed to archive project' });
+  }
+});
+
 // GET /api/tasks/:id - Get single task
 router.get('/:id', async (req, res) => {
   try {

@@ -16,7 +16,7 @@
 | US-703 | Subtasks | ✅ Done | None | Nested tasks with parent completion logic |
 | US-704 | Task dependencies | ✅ Done | US-703 | Block tasks until dependencies complete |
 | US-705 | Multiple task attempts | ✅ Done | None | Retry with different agent, preserve history |
-| US-706 | Auto-archive suggestions | ⏳ Todo | US-701, US-703 | Suggest archiving when project complete |
+| US-706 | Auto-archive suggestions | ✅ Done | US-701, US-703 | Suggest archiving when project complete |
 | US-707 | GitHub PR creation | ✅ Done | None | Create PR from task detail UI |
 | US-708 | Preview mode | ✅ Done | None | Embedded browser for dev server preview |
 | US-709 | Merge conflict resolution | ⏳ Todo | None | Visual conflict resolver UI |
@@ -131,5 +131,18 @@
   - URL display bar
   - Refresh and open external buttons
 - Preview button added to TaskDetailPanel for code tasks with repos
+
+**US-706: Auto-archive suggestions** ✅
+- TaskService methods: getArchiveSuggestions(), archiveProject()
+- Server-side detection of completed projects (all tasks done)
+- API endpoints: GET /api/tasks/archive/suggestions, POST /api/tasks/archive/project/:project
+- ArchiveSuggestionBanner component:
+  - Green success banner when project complete
+  - Shows task count
+  - One-click "Archive All" button
+  - Dismiss (X) button to hide suggestion
+  - Confirmation dialog before archiving
+- Activity logging for project_archived events
+- Replaces client-side ProjectArchiveSuggestion with server-side approach
 
 (Starting Sprint 7)

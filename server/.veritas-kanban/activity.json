@@ -1,5 +1,16 @@
 [
   {
+    "id": "activity_1769429690306_c0btfp6gv",
+    "type": "status_changed",
+    "taskId": "task_20260126_d6o4vo",
+    "taskTitle": "US-708: Preview mode",
+    "details": {
+      "from": "todo",
+      "status": "done"
+    },
+    "timestamp": "2026-01-26T12:14:50.306Z"
+  },
+  {
     "id": "activity_1769429392469_izvaxgolt",
     "type": "status_changed",
     "taskId": "task_20260126_byvNgE",

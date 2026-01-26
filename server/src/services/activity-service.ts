@@ -12,7 +12,8 @@ export type ActivityType =
   | 'task_archived'
   | 'task_deleted'
   | 'worktree_created'
-  | 'worktree_merged';
+  | 'worktree_merged'
+  | 'project_archived';
 
 export interface Activity {
   id: string;

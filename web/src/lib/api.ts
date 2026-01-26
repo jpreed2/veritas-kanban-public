@@ -115,6 +115,18 @@ export const api = {
       return handleResponse<Task>(response);
     },
 
+    getArchiveSuggestions: async (): Promise<ArchiveSuggestion[]> => {
+      const response = await fetch(`${API_BASE}/tasks/archive/suggestions`);
+      return handleResponse<ArchiveSuggestion[]>(response);
+    },
+
+    archiveProject: async (project: string): Promise<{ archived: number; taskIds: string[] }> => {
+      const response = await fetch(`${API_BASE}/tasks/archive/project/${encodeURIComponent(project)}`, {
+        method: 'POST',
+      });
+      return handleResponse<{ archived: number; taskIds: string[] }>(response);
+    },
+
     addSubtask: async (taskId: string, title: string): Promise<Task> => {
       const response = await fetch(`${API_BASE}/tasks/${taskId}/subtasks`, {
         method: 'POST',
@@ -362,6 +374,13 @@ export const api = {
     },
   },
 };
+
+// Types for archive suggestions
+export interface ArchiveSuggestion {
+  project: string;
+  taskCount: number;
+  tasks: Task[];
+}
 
 // Types for diff
 export interface FileChange {

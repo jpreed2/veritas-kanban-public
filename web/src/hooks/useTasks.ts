@@ -169,3 +169,25 @@ export function getTaskBlockers(task: Task, allTasks: Task[]): Task[] {
   
   return allTasks.filter(t => task.blockedBy?.includes(t.id) && t.status !== 'done');
 }
+
+// Archive suggestions - projects where all tasks are done
+export function useArchiveSuggestions() {
+  return useQuery({
+    queryKey: ['tasks', 'archive-suggestions'],
+    queryFn: api.tasks.getArchiveSuggestions,
+    refetchInterval: 30000, // Check every 30s
+  });
+}
+
+export function useArchiveProject() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (project: string) => api.tasks.archiveProject(project),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'archived'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'archive-suggestions'] });
+    },
+  });
+}
