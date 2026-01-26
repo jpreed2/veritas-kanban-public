@@ -105,6 +105,31 @@ export const api = {
       });
       return handleResponse<Task>(response);
     },
+
+    addSubtask: async (taskId: string, title: string): Promise<Task> => {
+      const response = await fetch(`${API_BASE}/tasks/${taskId}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      return handleResponse<Task>(response);
+    },
+
+    updateSubtask: async (taskId: string, subtaskId: string, updates: { title?: string; completed?: boolean }): Promise<Task> => {
+      const response = await fetch(`${API_BASE}/tasks/${taskId}/subtasks/${subtaskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      return handleResponse<Task>(response);
+    },
+
+    deleteSubtask: async (taskId: string, subtaskId: string): Promise<Task> => {
+      const response = await fetch(`${API_BASE}/tasks/${taskId}/subtasks/${subtaskId}`, {
+        method: 'DELETE',
+      });
+      return handleResponse<Task>(response);
+    },
   },
 
   config: {

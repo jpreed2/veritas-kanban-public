@@ -1,5 +1,57 @@
 [
   {
+    "id": "activity_1769428163170_hctvks08n",
+    "type": "status_changed",
+    "taskId": "task_20260126_tFaKR6",
+    "taskTitle": "US-703: Subtasks",
+    "details": {
+      "from": "in-progress",
+      "status": "done"
+    },
+    "timestamp": "2026-01-26T11:49:23.170Z"
+  },
+  {
+    "id": "activity_1769428005464_gpzpkjrn8",
+    "type": "task_archived",
+    "taskId": "task_20260126_yi65DL",
+    "taskTitle": "Second test task",
+    "timestamp": "2026-01-26T11:46:45.464Z"
+  },
+  {
+    "id": "activity_1769427996756_k3castu7l",
+    "type": "status_changed",
+    "taskId": "task_20260126_tFaKR6",
+    "taskTitle": "US-703: Subtasks",
+    "details": {
+      "from": "todo",
+      "status": "in-progress"
+    },
+    "timestamp": "2026-01-26T11:46:36.756Z"
+  },
+  {
+    "id": "activity_1769427993177_w3qclietr",
+    "type": "task_created",
+    "taskId": "task_20260126_tFaKR6",
+    "taskTitle": "US-703: Subtasks",
+    "details": {
+      "type": "code",
+      "priority": "high",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-26T11:46:33.177Z"
+  },
+  {
+    "id": "activity_1769427992175_6yjkl8qzb",
+    "type": "status_changed",
+    "taskId": "task_20260126_yi65DL",
+    "taskTitle": "Second test task",
+    "details": {
+      "from": "archived",
+      "status": "done"
+    },
+    "timestamp": "2026-01-26T11:46:32.175Z"
+  },
+  {
     "id": "activity_1769427982787_zlmx7wl1j",
     "type": "status_changed",
     "taskId": "task_20260126_UBz41o",

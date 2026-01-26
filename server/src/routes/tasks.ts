@@ -55,6 +55,13 @@ const reviewStateSchema = z.object({
   summary: z.string().optional(),
 });
 
+const subtaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  completed: z.boolean(),
+  created: z.string(),
+});
+
 const updateTaskSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().optional(),
@@ -67,6 +74,8 @@ const updateTaskSchema = z.object({
   attempt: attemptSchema,
   reviewComments: z.array(reviewCommentSchema).optional(),
   review: reviewStateSchema.optional(),
+  subtasks: z.array(subtaskSchema).optional(),
+  autoCompleteOnSubtasks: z.boolean().optional(),
   automation: automationSchema,
 });
 
@@ -219,6 +228,99 @@ router.post('/:id/restore', async (req, res) => {
   } catch (error) {
     console.error('Error restoring task:', error);
     res.status(500).json({ error: 'Failed to restore task' });
+  }
+});
+
+// === Subtask Routes ===
+
+const addSubtaskSchema = z.object({
+  title: z.string().min(1).max(200),
+});
+
+const updateSubtaskSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  completed: z.boolean().optional(),
+});
+
+// POST /api/tasks/:id/subtasks - Add subtask
+router.post('/:id/subtasks', async (req, res) => {
+  try {
+    const { title } = addSubtaskSchema.parse(req.body);
+    const task = await taskService.getTask(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const subtask = {
+      id: `subtask_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      title,
+      completed: false,
+      created: new Date().toISOString(),
+    };
+
+    const subtasks = [...(task.subtasks || []), subtask];
+    const updatedTask = await taskService.updateTask(req.params.id, { subtasks });
+    
+    res.status(201).json(updatedTask);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.errors });
+    }
+    console.error('Error adding subtask:', error);
+    res.status(500).json({ error: 'Failed to add subtask' });
+  }
+});
+
+// PATCH /api/tasks/:id/subtasks/:subtaskId - Update subtask
+router.patch('/:id/subtasks/:subtaskId', async (req, res) => {
+  try {
+    const updates = updateSubtaskSchema.parse(req.body);
+    const task = await taskService.getTask(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const subtasks = task.subtasks || [];
+    const subtaskIndex = subtasks.findIndex(s => s.id === req.params.subtaskId);
+    if (subtaskIndex === -1) {
+      return res.status(404).json({ error: 'Subtask not found' });
+    }
+
+    subtasks[subtaskIndex] = { ...subtasks[subtaskIndex], ...updates };
+
+    // Check if we should auto-complete the parent task
+    let taskUpdates: any = { subtasks };
+    if (task.autoCompleteOnSubtasks && subtasks.every(s => s.completed)) {
+      taskUpdates.status = 'done';
+    }
+
+    const updatedTask = await taskService.updateTask(req.params.id, taskUpdates);
+    
+    res.json(updatedTask);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.errors });
+    }
+    console.error('Error updating subtask:', error);
+    res.status(500).json({ error: 'Failed to update subtask' });
+  }
+});
+
+// DELETE /api/tasks/:id/subtasks/:subtaskId - Delete subtask
+router.delete('/:id/subtasks/:subtaskId', async (req, res) => {
+  try {
+    const task = await taskService.getTask(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const subtasks = (task.subtasks || []).filter(s => s.id !== req.params.subtaskId);
+    const updatedTask = await taskService.updateTask(req.params.id, { subtasks });
+    
+    res.json(updatedTask);
+  } catch (error) {
+    console.error('Error deleting subtask:', error);
+    res.status(500).json({ error: 'Failed to delete subtask' });
   }
 });
 

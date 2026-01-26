@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 import { nanoid } from 'nanoid';
-import type { Task, CreateTaskInput, UpdateTaskInput, ReviewComment } from '@veritas-kanban/shared';
+import type { Task, CreateTaskInput, UpdateTaskInput, ReviewComment, Subtask } from '@veritas-kanban/shared';
 
 // Simple slug function to avoid CJS/ESM issues with slugify
 function makeSlug(text: string): string {
@@ -97,6 +97,8 @@ export class TaskService {
       attempts: data.attempts,
       reviewComments,
       review: data.review,
+      subtasks: data.subtasks,
+      autoCompleteOnSubtasks: data.autoCompleteOnSubtasks,
       automation: data.automation,
     };
   }

@@ -40,6 +40,7 @@ import { GitSection } from './GitSection';
 import { AgentPanel } from './AgentPanel';
 import { DiffViewer } from './DiffViewer';
 import { ReviewPanel } from './ReviewPanel';
+import { SubtasksSection } from './SubtasksSection';
 
 interface TaskDetailPanelProps {
   task: Task | null;
@@ -288,6 +289,14 @@ export function TaskDetailPanel({ task, open, onOpenChange }: TaskDetailPanelPro
                     updateField('tags', tags.length > 0 ? tags : undefined);
                   }}
                   placeholder="Add tags (comma-separated)..."
+                />
+              </div>
+
+              {/* Subtasks */}
+              <div className="border-t pt-4">
+                <SubtasksSection
+                  task={localTask}
+                  onAutoCompleteChange={(value) => updateField('autoCompleteOnSubtasks', value || undefined)}
                 />
               </div>
 

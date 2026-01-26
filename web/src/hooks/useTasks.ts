@@ -83,6 +83,48 @@ export function useRestoreTask() {
   });
 }
 
+export function useAddSubtask() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ taskId, title }: { taskId: string; title: string }) => 
+      api.tasks.addSubtask(taskId, title),
+    onSuccess: (task) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.setQueryData(['tasks', task.id], task);
+    },
+  });
+}
+
+export function useUpdateSubtask() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ taskId, subtaskId, updates }: { 
+      taskId: string; 
+      subtaskId: string; 
+      updates: { title?: string; completed?: boolean } 
+    }) => api.tasks.updateSubtask(taskId, subtaskId, updates),
+    onSuccess: (task) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.setQueryData(['tasks', task.id], task);
+    },
+  });
+}
+
+export function useDeleteSubtask() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ taskId, subtaskId }: { taskId: string; subtaskId: string }) => 
+      api.tasks.deleteSubtask(taskId, subtaskId),
+    onSuccess: (task) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.setQueryData(['tasks', task.id], task);
+    },
+  });
+}
+
 export function useTasksByStatus(tasks: Task[] | undefined) {
   if (!tasks) {
     return {

@@ -21,6 +21,13 @@ export interface TaskAttempt {
   ended?: string;
 }
 
+export interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+  created: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -47,6 +54,10 @@ export interface Task {
 
   // Review state
   review?: ReviewState;
+
+  // Subtasks
+  subtasks?: Subtask[];
+  autoCompleteOnSubtasks?: boolean; // Auto-complete parent when all subtasks done
 
   // Automation task specific (for veritas sub-agent)
   automation?: {
@@ -96,6 +107,8 @@ export interface UpdateTaskInput {
   attempt?: TaskAttempt;
   reviewComments?: ReviewComment[];
   review?: ReviewState;
+  subtasks?: Subtask[];
+  autoCompleteOnSubtasks?: boolean;
   automation?: {
     sessionKey?: string;
     spawnedAt?: string;
