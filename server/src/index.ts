@@ -13,6 +13,7 @@ import templateRoutes from './routes/templates.js';
 import activityRoutes from './routes/activity.js';
 import githubRoutes from './routes/github.js';
 import previewRoutes from './routes/preview.js';
+import conflictRoutes from './routes/conflicts.js';
 import type { AgentOutput } from './services/agent-service.js';
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/preview', previewRoutes);
+app.use('/api/conflicts', conflictRoutes);
 
 // Create HTTP server
 const server = createServer(app);

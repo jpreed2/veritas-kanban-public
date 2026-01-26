@@ -19,7 +19,7 @@
 | US-706 | Auto-archive suggestions | ✅ Done | US-701, US-703 | Suggest archiving when project complete |
 | US-707 | GitHub PR creation | ✅ Done | None | Create PR from task detail UI |
 | US-708 | Preview mode | ✅ Done | None | Embedded browser for dev server preview |
-| US-709 | Merge conflict resolution | ⏳ Todo | None | Visual conflict resolver UI |
+| US-709 | Merge conflict resolution | ✅ Done | None | Visual conflict resolver UI |
 | US-710 | Time tracking | ⏳ Todo | None | Start/stop timer, manual entry, reports |
 | US-711 | Running indicator on cards | ⏳ Todo | None | Spinner/pulse animation when agent running |
 
@@ -144,5 +144,25 @@
   - Confirmation dialog before archiving
 - Activity logging for project_archived events
 - Replaces client-side ProjectArchiveSuggestion with server-side approach
+
+**US-709: Merge conflict resolution** ✅
+- ConflictService for detecting and resolving git conflicts:
+  - Detect rebase/merge in progress
+  - List conflicting files
+  - Get file conflict details (ours, theirs, base versions)
+  - Parse conflict markers
+  - Resolve with ours/theirs/manual content
+  - Abort or continue rebase/merge
+- API endpoints: GET /api/conflicts/:taskId, file, resolve, abort, continue
+- ConflictResolver component:
+  - Slide-out panel (90vw, max 1200px)
+  - File list sidebar with conflict count
+  - Side-by-side comparison view (Ours vs Theirs)
+  - Manual edit tab with full content editor
+  - Accept Ours / Accept Theirs buttons
+  - Abort and Continue actions with confirmation
+  - File navigation (prev/next)
+- Conflict warning banner in GitSection when conflicts detected
+- Auto-polling when conflicts present
 
 (Starting Sprint 7)

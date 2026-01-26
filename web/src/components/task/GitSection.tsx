@@ -40,6 +40,8 @@ import {
   useMergeWorktree 
 } from '@/hooks/useWorktree';
 import { useCreatePR, useGitHubStatus } from '@/hooks/useGitHub';
+import { useConflictStatus } from '@/hooks/useConflicts';
+import { ConflictResolver } from './ConflictResolver';
 import { 
   GitBranch, 
   FolderGit2, 
@@ -54,6 +56,7 @@ import {
   ArrowUp,
   ArrowDown,
   GitPullRequest,
+  AlertTriangle,
 } from 'lucide-react';
 import type { Task, TaskGit } from '@veritas-kanban/shared';
 import { cn } from '@/lib/utils';
@@ -76,6 +79,7 @@ function WorktreeStatus({ task }: { task: Task }) {
   const hasPR = !!task.git?.prUrl;
   const { data: status, isLoading, error } = useWorktreeStatus(task.id, hasWorktree);
   const { data: ghStatus } = useGitHubStatus();
+  const { data: conflictStatus } = useConflictStatus(hasWorktree ? task.id : undefined);
   
   const createWorktree = useCreateWorktree();
   const deleteWorktree = useDeleteWorktree();
@@ -88,6 +92,9 @@ function WorktreeStatus({ task }: { task: Task }) {
   const [prTitle, setPrTitle] = useState(task.title);
   const [prBody, setPrBody] = useState(task.description || '');
   const [prDraft, setPrDraft] = useState(false);
+  
+  // Conflict resolver state
+  const [conflictResolverOpen, setConflictResolverOpen] = useState(false);
 
   const handleOpenInVSCode = () => {
     if (task.git?.worktreePath) {
@@ -175,11 +182,42 @@ function WorktreeStatus({ task }: { task: Task }) {
   // Show worktree status
   return (
     <div className="mt-3 pt-3 border-t space-y-3">
+      {/* Conflict warning banner */}
+      {conflictStatus?.hasConflicts && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                {conflictStatus.conflictingFiles.length} conflict{conflictStatus.conflictingFiles.length !== 1 ? 's' : ''} detected
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                {conflictStatus.rebaseInProgress ? 'Rebase' : 'Merge'} requires manual resolution
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setConflictResolverOpen(true)}
+            className="border-amber-500/30 hover:bg-amber-500/10"
+          >
+            <AlertTriangle className="h-4 w-4 mr-1" />
+            Resolve Conflicts
+          </Button>
+        </div>
+      )}
+
       {/* Status indicators */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-muted-foreground">Worktree active</span>
+          <span className={cn(
+            "h-2 w-2 rounded-full",
+            conflictStatus?.hasConflicts ? "bg-amber-500" : "bg-green-500"
+          )} />
+          <span className="text-muted-foreground">
+            {conflictStatus?.hasConflicts ? 'Conflicts detected' : 'Worktree active'}
+          </span>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           {status && (
@@ -382,6 +420,13 @@ function WorktreeStatus({ task }: { task: Task }) {
       <div className="text-xs text-muted-foreground font-mono truncate">
         {task.git.worktreePath}
       </div>
+
+      {/* Conflict Resolver */}
+      <ConflictResolver
+        task={task}
+        open={conflictResolverOpen}
+        onOpenChange={setConflictResolverOpen}
+      />
     </div>
   );
 }
