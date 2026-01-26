@@ -3,7 +3,7 @@
 export type TaskType = 'code' | 'research' | 'content' | 'automation';
 export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'done';
 export type TaskPriority = 'low' | 'medium' | 'high';
-export type AgentType = 'claude-code' | 'amp' | 'copilot' | 'gemini';
+export type AgentType = 'claude-code' | 'amp' | 'copilot' | 'gemini' | 'veritas';
 export type AttemptStatus = 'pending' | 'running' | 'complete' | 'failed';
 
 export interface TaskGit {
@@ -47,6 +47,14 @@ export interface Task {
 
   // Review state
   review?: ReviewState;
+
+  // Automation task specific (for veritas sub-agent)
+  automation?: {
+    sessionKey?: string;    // Clawdbot session key
+    spawnedAt?: string;     // When sub-agent was spawned
+    completedAt?: string;   // When sub-agent finished
+    result?: string;        // Result summary from sub-agent
+  };
 }
 
 export interface ReviewComment {

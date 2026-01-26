@@ -27,10 +27,17 @@ const gitSchema = z.object({
 
 const attemptSchema = z.object({
   id: z.string(),
-  agent: z.enum(['claude-code', 'amp', 'copilot', 'gemini']),
+  agent: z.enum(['claude-code', 'amp', 'copilot', 'gemini', 'veritas']),
   status: z.enum(['pending', 'running', 'complete', 'failed']),
   started: z.string().optional(),
   ended: z.string().optional(),
+}).optional();
+
+const automationSchema = z.object({
+  sessionKey: z.string().optional(),
+  spawnedAt: z.string().optional(),
+  completedAt: z.string().optional(),
+  result: z.string().optional(),
 }).optional();
 
 const reviewCommentSchema = z.object({
@@ -59,6 +66,7 @@ const updateTaskSchema = z.object({
   attempt: attemptSchema,
   reviewComments: z.array(reviewCommentSchema).optional(),
   review: reviewStateSchema.optional(),
+  automation: automationSchema,
 });
 
 // GET /api/tasks - List all tasks
