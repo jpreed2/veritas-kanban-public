@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useUpdateTask, useDeleteTask } from '@/hooks/useTasks';
-import { Trash2, Code, Search, FileText, Zap, Calendar, Clock, GitBranch, Bot, FileDiff, ClipboardCheck } from 'lucide-react';
+import { Trash2, Code, Search, FileText, Zap, Calendar, Clock, GitBranch, Bot, FileDiff, ClipboardCheck, Monitor } from 'lucide-react';
 import type { Task, TaskType, TaskStatus, TaskPriority, ReviewComment, ReviewState } from '@veritas-kanban/shared';
 import { GitSection } from './GitSection';
 import { AgentPanel } from './AgentPanel';
@@ -42,6 +42,7 @@ import { DiffViewer } from './DiffViewer';
 import { ReviewPanel } from './ReviewPanel';
 import { SubtasksSection } from './SubtasksSection';
 import { DependenciesSection } from './DependenciesSection';
+import { PreviewPanel } from './PreviewPanel';
 
 interface TaskDetailPanelProps {
   task: Task | null;
@@ -122,6 +123,7 @@ export function TaskDetailPanel({ task, open, onOpenChange }: TaskDetailPanelPro
   const deleteTask = useDeleteTask();
   const { localTask, updateField, isDirty } = useDebouncedSave(task, updateTask);
   const [activeTab, setActiveTab] = useState('details');
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -176,29 +178,42 @@ export function TaskDetailPanel({ task, open, onOpenChange }: TaskDetailPanelPro
         </SheetHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden mt-4">
-          <TabsList className={`grid w-full ${isCodeTask ? 'grid-cols-5' : 'grid-cols-1'}`}>
-            <TabsTrigger value="details">Details</TabsTrigger>
-            {isCodeTask && (
-              <>
-                <TabsTrigger value="git" className="flex items-center gap-1">
-                  <GitBranch className="h-3 w-3" />
-                  Git
-                </TabsTrigger>
-                <TabsTrigger value="agent" className="flex items-center gap-1">
-                  <Bot className="h-3 w-3" />
-                  Agent
-                </TabsTrigger>
-                <TabsTrigger value="changes" disabled={!hasWorktree} className="flex items-center gap-1">
-                  <FileDiff className="h-3 w-3" />
-                  Changes
-                </TabsTrigger>
-                <TabsTrigger value="review" className="flex items-center gap-1">
-                  <ClipboardCheck className="h-3 w-3" />
-                  Review
-                </TabsTrigger>
-              </>
+          <div className="flex items-center gap-2">
+            <TabsList className={`grid flex-1 ${isCodeTask ? 'grid-cols-5' : 'grid-cols-1'}`}>
+              <TabsTrigger value="details">Details</TabsTrigger>
+              {isCodeTask && (
+                <>
+                  <TabsTrigger value="git" className="flex items-center gap-1">
+                    <GitBranch className="h-3 w-3" />
+                    Git
+                  </TabsTrigger>
+                  <TabsTrigger value="agent" className="flex items-center gap-1">
+                    <Bot className="h-3 w-3" />
+                    Agent
+                  </TabsTrigger>
+                  <TabsTrigger value="changes" disabled={!hasWorktree} className="flex items-center gap-1">
+                    <FileDiff className="h-3 w-3" />
+                    Changes
+                  </TabsTrigger>
+                  <TabsTrigger value="review" className="flex items-center gap-1">
+                    <ClipboardCheck className="h-3 w-3" />
+                    Review
+                  </TabsTrigger>
+                </>
+              )}
+            </TabsList>
+            {isCodeTask && localTask.git?.repo && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPreviewOpen(true)}
+                className="flex items-center gap-1"
+              >
+                <Monitor className="h-3 w-3" />
+                Preview
+              </Button>
             )}
-          </TabsList>
+          </div>
 
           <div className="flex-1 overflow-y-auto mt-4">
             {/* Details Tab */}
@@ -402,6 +417,15 @@ export function TaskDetailPanel({ task, open, onOpenChange }: TaskDetailPanelPro
           </div>
         </Tabs>
       </SheetContent>
+
+      {/* Preview Panel */}
+      {localTask && (
+        <PreviewPanel
+          task={localTask}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+        />
+      )}
     </Sheet>
   );
 }

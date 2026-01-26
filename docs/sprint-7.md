@@ -18,7 +18,7 @@
 | US-705 | Multiple task attempts | ✅ Done | None | Retry with different agent, preserve history |
 | US-706 | Auto-archive suggestions | ⏳ Todo | US-701, US-703 | Suggest archiving when project complete |
 | US-707 | GitHub PR creation | ✅ Done | None | Create PR from task detail UI |
-| US-708 | Preview mode | ⏳ Todo | None | Embedded browser for dev server preview |
+| US-708 | Preview mode | ✅ Done | None | Embedded browser for dev server preview |
 | US-709 | Merge conflict resolution | ⏳ Todo | None | Visual conflict resolver UI |
 | US-710 | Time tracking | ⏳ Todo | None | Start/stop timer, manual entry, reports |
 | US-711 | Running indicator on cards | ⏳ Todo | None | Spinner/pulse animation when agent running |
@@ -114,5 +114,22 @@
 - View PR button when PR exists (links to GitHub)
 - Auto-opens PR in browser after creation
 - Stores PR link in task for future reference
+
+**US-708: Preview mode** ✅
+- Added DevServerConfig to RepoConfig type (command, port, readyPattern)
+- PreviewService manages dev server processes:
+  - Start/stop servers per task
+  - Auto-detect port from output
+  - Ready detection patterns
+  - Output capture (last 100 lines)
+- API endpoints: GET/POST /api/preview/:taskId, output, start, stop
+- PreviewPanel component:
+  - Slide-out panel (800px wide)
+  - Start/stop controls
+  - Iframe preview of running server
+  - Terminal output toggle
+  - URL display bar
+  - Refresh and open external buttons
+- Preview button added to TaskDetailPanel for code tasks with repos
 
 (Starting Sprint 7)

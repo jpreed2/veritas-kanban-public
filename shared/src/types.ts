@@ -132,10 +132,17 @@ export interface TaskFilters {
 
 // Config Types
 
+export interface DevServerConfig {
+  command: string;      // e.g., "pnpm dev" or "npm run dev"
+  port?: number;        // Expected port (auto-detected if not specified)
+  readyPattern?: string; // Regex pattern to detect when server is ready
+}
+
 export interface RepoConfig {
   name: string;
   path: string;
   defaultBranch: string;
+  devServer?: DevServerConfig;
 }
 
 export interface AgentConfig {

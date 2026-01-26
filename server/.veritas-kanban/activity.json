@@ -1,5 +1,16 @@
 [
   {
+    "id": "activity_1769429392469_izvaxgolt",
+    "type": "status_changed",
+    "taskId": "task_20260126_byvNgE",
+    "taskTitle": "US-707: GitHub PR creation",
+    "details": {
+      "from": "todo",
+      "status": "done"
+    },
+    "timestamp": "2026-01-26T12:09:52.469Z"
+  },
+  {
     "id": "activity_1769429018087_594327jpq",
     "type": "task_deleted",
     "taskId": "task_20260126_P376Wt",

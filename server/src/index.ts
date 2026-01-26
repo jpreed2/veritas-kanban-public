@@ -12,6 +12,7 @@ import { notificationRoutes } from './routes/notifications.js';
 import templateRoutes from './routes/templates.js';
 import activityRoutes from './routes/activity.js';
 import githubRoutes from './routes/github.js';
+import previewRoutes from './routes/preview.js';
 import type { AgentOutput } from './services/agent-service.js';
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/github', githubRoutes);
+app.use('/api/preview', previewRoutes);
 
 // Create HTTP server
 const server = createServer(app);
