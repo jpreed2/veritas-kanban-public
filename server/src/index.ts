@@ -3,6 +3,7 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { taskRoutes } from './routes/tasks.js';
+import { configRoutes } from './routes/config.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,6 +19,7 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/tasks', taskRoutes);
+app.use('/api/config', configRoutes);
 
 // Create HTTP server
 const server = createServer(app);

@@ -1,10 +1,12 @@
 import { Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateTaskDialog } from '@/components/task/CreateTaskDialog';
+import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { useState } from 'react';
 
 export function Header() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <header className="border-b border-border bg-card">
@@ -26,7 +28,11 @@ export function Header() {
               <Plus className="h-4 w-4 mr-1" />
               New Task
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setSettingsOpen(true)}
+            >
               <Settings className="h-4 w-4" />
             </Button>
           </div>
@@ -34,6 +40,7 @@ export function Header() {
       </div>
       
       <CreateTaskDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 }

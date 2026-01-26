@@ -1,4 +1,4 @@
-import type { Task, CreateTaskInput, UpdateTaskInput } from '@veritas-kanban/shared';
+import type { Task, CreateTaskInput, UpdateTaskInput, AppConfig, RepoConfig } from '@veritas-kanban/shared';
 
 const API_BASE = '/api';
 
@@ -55,6 +55,59 @@ export const api = {
         method: 'POST',
       });
       return handleResponse<void>(response);
+    },
+  },
+
+  config: {
+    get: async (): Promise<AppConfig> => {
+      const response = await fetch(`${API_BASE}/config`);
+      return handleResponse<AppConfig>(response);
+    },
+
+    repos: {
+      list: async (): Promise<RepoConfig[]> => {
+        const response = await fetch(`${API_BASE}/config/repos`);
+        return handleResponse<RepoConfig[]>(response);
+      },
+
+      add: async (repo: RepoConfig): Promise<AppConfig> => {
+        const response = await fetch(`${API_BASE}/config/repos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(repo),
+        });
+        return handleResponse<AppConfig>(response);
+      },
+
+      update: async (name: string, updates: Partial<RepoConfig>): Promise<AppConfig> => {
+        const response = await fetch(`${API_BASE}/config/repos/${encodeURIComponent(name)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        return handleResponse<AppConfig>(response);
+      },
+
+      remove: async (name: string): Promise<AppConfig> => {
+        const response = await fetch(`${API_BASE}/config/repos/${encodeURIComponent(name)}`, {
+          method: 'DELETE',
+        });
+        return handleResponse<AppConfig>(response);
+      },
+
+      validate: async (path: string): Promise<{ valid: boolean; branches: string[] }> => {
+        const response = await fetch(`${API_BASE}/config/repos/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path }),
+        });
+        return handleResponse<{ valid: boolean; branches: string[] }>(response);
+      },
+
+      branches: async (name: string): Promise<string[]> => {
+        const response = await fetch(`${API_BASE}/config/repos/${encodeURIComponent(name)}/branches`);
+        return handleResponse<string[]>(response);
+      },
     },
   },
 };
