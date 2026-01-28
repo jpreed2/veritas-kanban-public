@@ -44,6 +44,7 @@ import {
 import { Plus, Trash2, Check, X, Loader2, FolderGit2, Bot, Star, FileText } from 'lucide-react';
 import type { RepoConfig, AgentConfig, AgentType, TaskType, TaskPriority } from '@veritas-kanban/shared';
 import { cn } from '@/lib/utils';
+import { TEMPLATE_CATEGORIES, getCategoryIcon, getCategoryLabel } from '@/lib/template-categories';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -230,6 +231,7 @@ function RepoItem({ repo }: { repo: RepoConfig }) {
 function AddTemplateForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState<string>('');
   const [type, setType] = useState<TaskType | ''>('');
   const [priority, setPriority] = useState<TaskPriority | ''>('');
   const [project, setProject] = useState('');
@@ -244,6 +246,7 @@ function AddTemplateForm({ onClose }: { onClose: () => void }) {
     await createTemplate.mutateAsync({
       name: name.trim(),
       description: description.trim() || undefined,
+      category: category || undefined,
       taskDefaults: {
         type: type || undefined,
         priority: priority || undefined,
@@ -281,6 +284,22 @@ function AddTemplateForm({ onClose }: { onClose: () => void }) {
               placeholder="e.g., Template for bug fixes"
             />
           </div>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Category</Label>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select category..." />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TEMPLATE_CATEGORIES).map(([key, { label, icon }]) => (
+                <SelectItem key={key} value={key}>
+                  {icon} {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
@@ -351,8 +370,15 @@ function TemplateItem({ template }: { template: TaskTemplate }) {
     <div className="flex items-center justify-between py-2 px-3 rounded-md border bg-card">
       <div className="flex items-center gap-3">
         <FileText className="h-4 w-4 text-muted-foreground" />
-        <div>
-          <div className="font-medium">{template.name}</div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{template.name}</span>
+            {template.category && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-muted">
+                {getCategoryIcon(template.category)} {getCategoryLabel(template.category)}
+              </span>
+            )}
+          </div>
           <div className="text-xs text-muted-foreground">
             {[
               template.taskDefaults.type,

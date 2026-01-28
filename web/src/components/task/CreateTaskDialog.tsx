@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCreateTask } from '@/hooks/useTasks';
 import { useTemplates, type TaskTemplate } from '@/hooks/useTemplates';
 import type { TaskType, TaskPriority, Subtask } from '@veritas-kanban/shared';
@@ -27,6 +28,7 @@ import {
   extractCustomVariables,
   type VariableContext 
 } from '@/lib/template-variables';
+import { getCategoryIcon } from '@/lib/template-categories';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -43,9 +45,17 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [customVars, setCustomVars] = useState<Record<string, string>>({});
   const [requiredCustomVars, setRequiredCustomVars] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const createTask = useCreateTask();
   const { data: templates } = useTemplates();
+
+  // Filter templates by selected category
+  const filteredTemplates = useMemo(() => {
+    if (!templates) return [];
+    if (categoryFilter === 'all') return templates;
+    return templates.filter(t => (t.category || 'custom') === categoryFilter);
+  }, [templates, categoryFilter]);
 
   const applyTemplate = (template: TaskTemplate) => {
     setSelectedTemplate(template.id);
@@ -155,8 +165,19 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           
           {/* Template selector */}
           {templates && templates.length > 0 && (
-            <div className="flex items-center gap-2 py-2 border-b">
-              <FileText className="h-4 w-4 text-muted-foreground" />
+            <div className="border-b pb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm">Template</Label>
+              </div>
+              <Tabs value={categoryFilter} onValueChange={setCategoryFilter}>
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
+                  <TabsTrigger value="bug" className="text-xs">🐛</TabsTrigger>
+                  <TabsTrigger value="feature" className="text-xs">✨</TabsTrigger>
+                  <TabsTrigger value="sprint" className="text-xs">🔄</TabsTrigger>
+                </TabsList>
+              </Tabs>
               <Select
                 value={selectedTemplate || 'none'}
                 onValueChange={(value) => {
@@ -168,13 +189,14 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                   }
                 }}
               >
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Use a template..." />
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Select template..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No template</SelectItem>
-                  {templates.map((template) => (
+                  {filteredTemplates.map((template) => (
                     <SelectItem key={template.id} value={template.id}>
+                      {template.category && `${getCategoryIcon(template.category)} `}
                       {template.name}
                       {template.description && (
                         <span className="text-muted-foreground ml-2">
