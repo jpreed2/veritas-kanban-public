@@ -20,8 +20,13 @@ import {
 import { useCreateTask } from '@/hooks/useTasks';
 import { useTemplates, type TaskTemplate } from '@/hooks/useTemplates';
 import type { TaskType, TaskPriority, Subtask } from '@veritas-kanban/shared';
-import { FileText, X, Check } from 'lucide-react';
+import { FileText, X, Check, AlertCircle } from 'lucide-react';
 import { nanoid } from 'nanoid';
+import { 
+  interpolateVariables, 
+  extractCustomVariables,
+  type VariableContext 
+} from '@/lib/template-variables';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -36,6 +41,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
   const [project, setProject] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [customVars, setCustomVars] = useState<Record<string, string>>({});
+  const [requiredCustomVars, setRequiredCustomVars] = useState<string[]>([]);
 
   const createTask = useCreateTask();
   const { data: templates } = useTemplates();
@@ -45,16 +52,36 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     if (template.taskDefaults.type) setType(template.taskDefaults.type);
     if (template.taskDefaults.priority) setPriority(template.taskDefaults.priority);
     if (template.taskDefaults.project) setProject(template.taskDefaults.project);
-    if (template.taskDefaults.descriptionTemplate) setDescription(template.taskDefaults.descriptionTemplate);
     
-    // Convert subtask templates to actual subtasks
+    // Extract custom variables from description template and subtasks
+    const allTemplateText = [
+      template.taskDefaults.descriptionTemplate || '',
+      ...(template.subtaskTemplates?.map(st => st.title) || [])
+    ].join(' ');
+    
+    const customVarNames = extractCustomVariables(allTemplateText);
+    setRequiredCustomVars(customVarNames);
+    
+    // Initialize custom vars
+    const initialCustomVars: Record<string, string> = {};
+    customVarNames.forEach(name => {
+      initialCustomVars[name] = '';
+    });
+    setCustomVars(initialCustomVars);
+    
+    // Store raw template (will be interpolated when custom vars are filled)
+    if (template.taskDefaults.descriptionTemplate) {
+      setDescription(template.taskDefaults.descriptionTemplate);
+    }
+    
+    // Convert subtask templates to actual subtasks (will be interpolated on submit)
     if (template.subtaskTemplates && template.subtaskTemplates.length > 0) {
       const now = new Date().toISOString();
       const templateSubtasks: Subtask[] = template.subtaskTemplates
         .sort((a, b) => a.order - b.order)
         .map(st => ({
           id: nanoid(),
-          title: st.title, // Variable interpolation will be added in US-903
+          title: st.title, // Will be interpolated on submit
           completed: false,
           created: now,
         }));
@@ -67,6 +94,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
   const clearTemplate = () => {
     setSelectedTemplate(null);
     setSubtasks([]);
+    setCustomVars({});
+    setRequiredCustomVars([]);
   };
 
   const removeSubtask = (id: string) => {
@@ -78,13 +107,29 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     
     if (!title.trim()) return;
 
+    // Build variable context
+    const context: VariableContext = {
+      project: project.trim() || undefined,
+      author: 'Brad', // TODO: Get from user config
+      customVars,
+    };
+
+    // Interpolate variables in description
+    const interpolatedDescription = interpolateVariables(description, context);
+
+    // Interpolate variables in subtask titles
+    const interpolatedSubtasks = subtasks.map(st => ({
+      ...st,
+      title: interpolateVariables(st.title, context),
+    }));
+
     await createTask.mutateAsync({
       title: title.trim(),
-      description: description.trim(),
+      description: interpolatedDescription.trim(),
       type,
       priority,
       project: project.trim() || undefined,
-      subtasks: subtasks.length > 0 ? subtasks : undefined,
+      subtasks: interpolatedSubtasks.length > 0 ? interpolatedSubtasks : undefined,
     });
 
     // Reset form
@@ -95,6 +140,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     setProject('');
     setSelectedTemplate(null);
     setSubtasks([]);
+    setCustomVars({});
+    setRequiredCustomVars([]);
     onOpenChange(false);
   };
 
@@ -204,6 +251,30 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                 placeholder="e.g., rubicon"
               />
             </div>
+
+            {/* Custom variable inputs */}
+            {requiredCustomVars.length > 0 && (
+              <div className="grid gap-3 border rounded-md p-3 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-blue-500" />
+                  <Label className="text-sm font-medium">Template Variables</Label>
+                </div>
+                {requiredCustomVars.map((varName) => (
+                  <div key={varName} className="grid gap-1.5">
+                    <Label htmlFor={`var-${varName}`} className="text-xs">
+                      {varName}
+                    </Label>
+                    <Input
+                      id={`var-${varName}`}
+                      value={customVars[varName] || ''}
+                      onChange={(e) => setCustomVars(prev => ({ ...prev, [varName]: e.target.value }))}
+                      placeholder={`Enter ${varName}...`}
+                      className="h-8"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Subtasks from template */}
             {subtasks.length > 0 && (

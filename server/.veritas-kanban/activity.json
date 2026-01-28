@@ -1,5 +1,113 @@
 [
   {
+    "id": "activity_1769567065219_a6upvequb",
+    "type": "task_created",
+    "taskId": "task_20260128_AaRWcX",
+    "taskTitle": "US-909: Enhanced template UI",
+    "details": {
+      "type": "code",
+      "priority": "high",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.219Z"
+  },
+  {
+    "id": "activity_1769567065211_4isatalc8",
+    "type": "task_created",
+    "taskId": "task_20260128_dKzctW",
+    "taskTitle": "US-908: Template import/export",
+    "details": {
+      "type": "code",
+      "priority": "low",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.211Z"
+  },
+  {
+    "id": "activity_1769567065203_99rmbequ2",
+    "type": "task_created",
+    "taskId": "task_20260128_qcy3FJ",
+    "taskTitle": "US-907: Apply template to existing task",
+    "details": {
+      "type": "code",
+      "priority": "medium",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.203Z"
+  },
+  {
+    "id": "activity_1769567065196_78f3ln7f3",
+    "type": "task_created",
+    "taskId": "task_20260128_9Jlp1m",
+    "taskTitle": "US-906: Agent & dependency defaults",
+    "details": {
+      "type": "code",
+      "priority": "medium",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.196Z"
+  },
+  {
+    "id": "activity_1769567065189_97rq3pry3",
+    "type": "task_created",
+    "taskId": "task_20260128_8ro0pA",
+    "taskTitle": "US-905: Multi-task blueprints",
+    "details": {
+      "type": "code",
+      "priority": "high",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.189Z"
+  },
+  {
+    "id": "activity_1769567065182_rhdkjptbj",
+    "type": "task_created",
+    "taskId": "task_20260128_dvaLco",
+    "taskTitle": "US-904: Template categories",
+    "details": {
+      "type": "code",
+      "priority": "medium",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.182Z"
+  },
+  {
+    "id": "activity_1769567065175_80iu7gfnj",
+    "type": "task_created",
+    "taskId": "task_20260128_nyIFMc",
+    "taskTitle": "US-903: Variable interpolation",
+    "details": {
+      "type": "code",
+      "priority": "high",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.175Z"
+  },
+  {
+    "id": "activity_1769567065167_9zwyul2za",
+    "type": "task_created",
+    "taskId": "task_20260128_z6OIb_",
+    "taskTitle": "US-902: Subtask templates",
+    "details": {
+      "type": "code",
+      "priority": "high",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.167Z"
+  },
+  {
+    "id": "activity_1769567065157_6ercfkv06",
+    "type": "task_created",
+    "taskId": "task_20260128_fL0JN1",
+    "taskTitle": "US-901: Enhanced template schema",
+    "details": {
+      "type": "code",
+      "priority": "high",
+      "project": "veritas-kanban"
+    },
+    "timestamp": "2026-01-28T02:24:25.157Z"
+  },
+  {
     "id": "activity_1769566823396_8obnvtzid",
     "type": "task_archived",
     "taskId": "task_20260128_nYPgZw",
@@ -891,94 +999,5 @@
       "status": "in-progress"
     },
     "timestamp": "2026-01-26T12:03:24.596Z"
-  },
-  {
-    "id": "activity_1769429000893_ztrgwdus8",
-    "type": "task_deleted",
-    "taskId": "task_20260126_XH-580",
-    "taskTitle": "US-704: Task dependencies",
-    "timestamp": "2026-01-26T12:03:20.893Z"
-  },
-  {
-    "id": "activity_1769428992526_4jxiq95db",
-    "type": "task_deleted",
-    "taskId": "task_20260126_PoYogZ",
-    "taskTitle": "US-703: Subtasks",
-    "timestamp": "2026-01-26T12:03:12.526Z"
-  },
-  {
-    "id": "activity_1769428978518_sfx4o5496",
-    "type": "task_deleted",
-    "taskId": "task_20260126_LC4p7w",
-    "taskTitle": "US-702: Restore from archive",
-    "timestamp": "2026-01-26T12:02:58.518Z"
-  },
-  {
-    "id": "activity_1769428956686_dufwo8w4s",
-    "type": "status_changed",
-    "taskId": "task_20260126_m4OisW",
-    "taskTitle": "US-706: Auto-archive suggestions",
-    "details": {
-      "from": "in-progress",
-      "status": "done"
-    },
-    "timestamp": "2026-01-26T12:02:36.686Z"
-  },
-  {
-    "id": "activity_1769428430293_r58fn28l7",
-    "type": "status_changed",
-    "taskId": "task_20260126_m4OisW",
-    "taskTitle": "US-706: Auto-archive suggestions",
-    "details": {
-      "from": "todo",
-      "status": "in-progress"
-    },
-    "timestamp": "2026-01-26T11:53:50.293Z"
-  },
-  {
-    "id": "activity_1769428426839_ifp093ztg",
-    "type": "task_created",
-    "taskId": "task_20260126_m4OisW",
-    "taskTitle": "US-706: Auto-archive suggestions",
-    "details": {
-      "type": "code",
-      "priority": "low",
-      "project": "veritas-kanban"
-    },
-    "timestamp": "2026-01-26T11:53:46.839Z"
-  },
-  {
-    "id": "activity_1769428411051_otkhs6aer",
-    "type": "status_changed",
-    "taskId": "task_20260126_eZNCQk",
-    "taskTitle": "US-705: Multiple task attempts",
-    "details": {
-      "from": "in-progress",
-      "status": "done"
-    },
-    "timestamp": "2026-01-26T11:53:31.051Z"
-  },
-  {
-    "id": "activity_1769428342497_qijcsn58a",
-    "type": "status_changed",
-    "taskId": "task_20260126_eZNCQk",
-    "taskTitle": "US-705: Multiple task attempts",
-    "details": {
-      "from": "todo",
-      "status": "in-progress"
-    },
-    "timestamp": "2026-01-26T11:52:22.497Z"
-  },
-  {
-    "id": "activity_1769428338411_6js6nt4zu",
-    "type": "task_created",
-    "taskId": "task_20260126_eZNCQk",
-    "taskTitle": "US-705: Multiple task attempts",
-    "details": {
-      "type": "code",
-      "priority": "medium",
-      "project": "veritas-kanban"
-    },
-    "timestamp": "2026-01-26T11:52:18.411Z"
   }
 ]
