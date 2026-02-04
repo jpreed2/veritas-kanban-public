@@ -8,8 +8,10 @@
  *   {dataDir}/audit/audit-{YYYY-MM}.log
  */
 import fs from 'fs/promises';
+import { createReadStream } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import readline from 'readline';
 import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('audit');
@@ -176,9 +178,9 @@ async function writeEntry(event: AuditEvent): Promise<void> {
  * Returns a result indicating whether the chain is intact.
  */
 export async function verifyAuditLog(filePath: string): Promise<VerifyResult> {
-  let content: string;
+  // Check if file exists
   try {
-    content = await fs.readFile(filePath, 'utf8');
+    await fs.access(filePath);
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return { valid: true, entries: 0 };
@@ -186,29 +188,61 @@ export async function verifyAuditLog(filePath: string): Promise<VerifyResult> {
     throw err;
   }
 
-  const lines = content.trimEnd().split('\n').filter(Boolean);
-  if (lines.length === 0) {
-    return { valid: true, entries: 0 };
-  }
+  return new Promise((resolve, reject) => {
+    const stream = createReadStream(filePath, { encoding: 'utf8' });
+    const rl = readline.createInterface({
+      input: stream,
+      crlfDelay: Infinity,
+    });
 
-  let prevHash = '';
+    let prevHash = '';
+    let lineIndex = 0;
+    let totalLines = 0;
+    let invalidResult: VerifyResult | null = null;
 
-  for (let i = 0; i < lines.length; i++) {
-    let entry: AuditEntry;
-    try {
-      entry = JSON.parse(lines[i]) as AuditEntry;
-    } catch {
-      return { valid: false, entries: lines.length, firstBroken: i };
-    }
+    rl.on('line', (line) => {
+      if (invalidResult) return; // Already found an error
 
-    if (entry.integrity !== prevHash) {
-      return { valid: false, entries: lines.length, firstBroken: i };
-    }
+      const trimmed = line.trim();
+      if (!trimmed) {
+        lineIndex++;
+        return;
+      }
 
-    prevHash = sha256(lines[i]);
-  }
+      totalLines++;
 
-  return { valid: true, entries: lines.length };
+      let entry: AuditEntry;
+      try {
+        entry = JSON.parse(trimmed) as AuditEntry;
+      } catch {
+        invalidResult = { valid: false, entries: totalLines, firstBroken: lineIndex };
+        rl.close();
+        stream.destroy();
+        return;
+      }
+
+      if (entry.integrity !== prevHash) {
+        invalidResult = { valid: false, entries: totalLines, firstBroken: lineIndex };
+        rl.close();
+        stream.destroy();
+        return;
+      }
+
+      prevHash = sha256(trimmed);
+      lineIndex++;
+    });
+
+    rl.on('close', () => {
+      if (invalidResult) {
+        resolve(invalidResult);
+      } else {
+        resolve({ valid: true, entries: totalLines });
+      }
+    });
+
+    rl.on('error', reject);
+    stream.on('error', reject);
+  });
 }
 
 /**

@@ -74,7 +74,11 @@ export class ActivityService {
     }
   }
 
-  async getActivities(limit: number = 50, filters?: ActivityFilters): Promise<Activity[]> {
+  async getActivities(
+    limit: number = 50,
+    filters?: ActivityFilters,
+    offset: number = 0
+  ): Promise<Activity[]> {
     let activities = await this.loadAll();
 
     // Apply filters
@@ -99,7 +103,7 @@ export class ActivityService {
       }
     }
 
-    return activities.slice(0, limit);
+    return activities.slice(offset, offset + limit);
   }
 
   /**

@@ -126,6 +126,9 @@ export async function computeVelocityMetrics(
     (t) => !project || t.project === project
   );
 
+  // Pre-compute archived IDs set for O(1) lookup (avoid O(n²) in loop)
+  const archivedIds = new Set(archivedTasks.map((a) => a.id));
+
   // Group tasks by sprint
   const sprintData = new Map<
     string,
@@ -147,7 +150,7 @@ export async function computeVelocityMetrics(
     data.total++;
 
     // Count completed tasks (done or archived)
-    const isCompleted = task.status === 'done' || archivedTasks.some((a) => a.id === task.id);
+    const isCompleted = task.status === 'done' || archivedIds.has(task.id);
     if (isCompleted) {
       data.completed++;
 

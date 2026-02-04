@@ -130,10 +130,23 @@ export class BacklogRepository {
 
   /**
    * Get a single backlog task by ID
+   * Uses direct file lookup by ID prefix instead of scanning all files.
    */
   async findById(id: string): Promise<Task | null> {
-    const tasks = await this.listAll();
-    return tasks.find((t) => t.id === id) || null;
+    await this.ensureDirectory();
+
+    // Files are named: ${id}-${slug}.md
+    // Find file that starts with the ID
+    const files = await fs.readdir(this.backlogDir);
+    const targetFile = files.find((f) => f.startsWith(`${id}-`) && f.endsWith('.md'));
+
+    if (!targetFile) {
+      return null;
+    }
+
+    const filepath = path.join(this.backlogDir, targetFile);
+    const content = await fs.readFile(filepath, 'utf-8');
+    return this.parseTaskFile(content, targetFile);
   }
 
   /**

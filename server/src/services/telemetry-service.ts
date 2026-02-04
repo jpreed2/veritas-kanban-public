@@ -1,8 +1,9 @@
 import fs from 'fs/promises';
 import { createReadStream, createWriteStream } from '../storage/fs-helpers.js';
 import path from 'path';
-import { createGzip, gunzipSync } from 'zlib';
+import { createGzip, createGunzip } from 'zlib';
 import { pipeline } from 'stream/promises';
+import readline from 'readline';
 import { nanoid } from 'nanoid';
 import type {
   TelemetryEvent,
@@ -167,44 +168,36 @@ export class TelemetryService {
     await this.init();
 
     const { type, since, until, taskId, project, limit } = options;
+    const types = type ? (Array.isArray(type) ? type : [type]) : null;
 
     // Determine which files to read based on date range
     const files = await this.getEventFiles(since, until);
 
-    let events: AnyTelemetryEvent[] = [];
+    const events: AnyTelemetryEvent[] = [];
 
+    // Use streaming with early filtering
     for (const file of files) {
-      const fileEvents = await this.readEventFile(file);
-      events.push(...fileEvents);
+      await this.streamEventFile(file, (event) => {
+        // Apply filters during streaming (early rejection)
+        if (types && !types.includes(event.type)) return;
+        if (since && event.timestamp < since) return;
+        if (until && event.timestamp > until) return;
+        if (taskId && event.taskId !== taskId) return;
+        if (project && event.project !== project) return;
+
+        events.push(event);
+
+        // Note: Can't early-terminate by limit here because we need to sort first.
+        // However, filtering during streaming reduces memory usage significantly.
+      });
     }
-
-    // Apply filters
-    events = events.filter((event) => {
-      // Type filter
-      if (type) {
-        const types = Array.isArray(type) ? type : [type];
-        if (!types.includes(event.type)) return false;
-      }
-
-      // Time range filters
-      if (since && event.timestamp < since) return false;
-      if (until && event.timestamp > until) return false;
-
-      // Task filter
-      if (taskId && event.taskId !== taskId) return false;
-
-      // Project filter
-      if (project && event.project !== project) return false;
-
-      return true;
-    });
 
     // Sort by timestamp (newest first)
     events.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
-    // Apply limit
+    // Apply limit after sort
     if (limit && events.length > limit) {
-      events = events.slice(0, limit);
+      return events.slice(0, limit);
     }
 
     return events;
@@ -392,39 +385,70 @@ export class TelemetryService {
   }
 
   /**
-   * Read events from a single file (supports .ndjson and .ndjson.gz)
+   * Stream events from a single file (supports .ndjson and .ndjson.gz)
+   * Uses readline for memory-efficient line-by-line processing.
+   * Calls the callback for each event; return false to stop early.
    */
-  private async readEventFile(filename: string): Promise<AnyTelemetryEvent[]> {
+  private async streamEventFile(
+    filename: string,
+    callback: (event: AnyTelemetryEvent) => boolean | void
+  ): Promise<void> {
     const filepath = path.join(this.telemetryDir, filename);
     const isGzipped = filename.endsWith('.gz');
 
     try {
-      let content: string;
-      if (isGzipped) {
-        const buffer = await fs.readFile(filepath);
-        content = gunzipSync(buffer).toString('utf-8');
-      } else {
-        content = await fs.readFile(filepath, 'utf-8');
-      }
-
-      const lines = content.trim().split('\n').filter(Boolean);
-
-      return lines
-        .map((line) => {
-          try {
-            return JSON.parse(line) as AnyTelemetryEvent;
-          } catch {
-            log.error({ err: line }, '[Telemetry] Failed to parse line');
-            return null;
-          }
-        })
-        .filter((e): e is AnyTelemetryEvent => e !== null);
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        return [];
-      }
-      throw error;
+      await fs.access(filepath);
+    } catch {
+      return; // File doesn't exist
     }
+
+    return new Promise((resolve, reject) => {
+      let stream = createReadStream(filepath);
+
+      if (isGzipped) {
+        const gunzip = createGunzip();
+        stream = stream.pipe(gunzip) as unknown as ReturnType<typeof createReadStream>;
+      }
+
+      const rl = readline.createInterface({
+        input: stream as NodeJS.ReadableStream,
+        crlfDelay: Infinity,
+      });
+
+      let stopped = false;
+
+      rl.on('line', (line) => {
+        if (stopped || !line.trim()) return;
+
+        try {
+          const event = JSON.parse(line) as AnyTelemetryEvent;
+          const shouldContinue = callback(event);
+          if (shouldContinue === false) {
+            stopped = true;
+            rl.close();
+            stream.destroy();
+          }
+        } catch {
+          log.error({ err: line }, '[Telemetry] Failed to parse line');
+        }
+      });
+
+      rl.on('close', () => resolve());
+      rl.on('error', reject);
+      stream.on('error', reject);
+    });
+  }
+
+  /**
+   * Read all events from a single file (backwards compat wrapper)
+   * Prefer streamEventFile for large files with filtering/limits.
+   */
+  private async readEventFile(filename: string): Promise<AnyTelemetryEvent[]> {
+    const events: AnyTelemetryEvent[] = [];
+    await this.streamEventFile(filename, (event) => {
+      events.push(event);
+    });
+    return events;
   }
 
   /**
