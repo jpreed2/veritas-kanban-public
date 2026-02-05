@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   Activity as ActivityIcon,
   ArrowLeft,
@@ -12,9 +13,25 @@ import {
   useStatusHistory,
   formatDurationMs,
   getStatusColor,
-  type StatusHistoryEntry,
 } from '@/hooks/useStatusHistory';
+import { useActivityFeed, type Activity } from '@/hooks/useActivity';
 import { cn } from '@/lib/utils';
+
+// Kanban column colors
+function getColumnColor(status: string): string {
+  switch (status) {
+    case 'todo':
+      return 'bg-slate-500';
+    case 'in-progress':
+      return 'bg-blue-500';
+    case 'blocked':
+      return 'bg-amber-500';
+    case 'done':
+      return 'bg-green-500';
+    default:
+      return 'bg-gray-500';
+  }
+}
 
 // ─── Daily Summary ───────────────────────────────────────────────────────────
 
@@ -97,8 +114,10 @@ function DailySummaryPanel() {
 
 // ─── Status History ──────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
-  const colorClass = getStatusColor(status);
+function StatusBadge({ status, isTaskStatus }: { status: string; isTaskStatus?: boolean }) {
+  const colorClass = isTaskStatus ? getColumnColor(status) : getStatusColor(status);
+  // Format task status for display
+  const displayStatus = isTaskStatus ? (status === 'in-progress' ? 'in-progress' : status) : status;
   return (
     <span
       className={cn(
@@ -106,7 +125,7 @@ function StatusBadge({ status }: { status: string }) {
         colorClass
       )}
     >
-      {status}
+      {displayStatus}
     </span>
   );
 }
@@ -115,11 +134,68 @@ interface StatusHistoryPanelProps {
   onTaskClick?: (taskId: string) => void;
 }
 
+// Unified entry type for both agent status and task status changes
+interface UnifiedEntry {
+  id: string;
+  timestamp: string;
+  type: 'agent' | 'task';
+  previousStatus: string;
+  newStatus: string;
+  taskId?: string;
+  taskTitle?: string;
+  durationMs?: number;
+}
+
 function StatusHistoryPanel({ onTaskClick }: StatusHistoryPanelProps) {
-  const { data: history, isLoading } = useStatusHistory(100);
+  const { data: agentHistory, isLoading: agentLoading } = useStatusHistory(100);
+  const { data: taskActivity, isLoading: taskLoading } = useActivityFeed(100, {
+    type: 'status_changed',
+  });
+
+  const isLoading = agentLoading || taskLoading;
+
+  // Merge and sort both types of status changes
+  const allEntries = useMemo(() => {
+    const entries: UnifiedEntry[] = [];
+
+    // Add agent status entries
+    (agentHistory || []).forEach((entry) => {
+      entries.push({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        type: 'agent',
+        previousStatus: entry.previousStatus,
+        newStatus: entry.newStatus,
+        taskId: entry.taskId,
+        taskTitle: entry.taskTitle,
+        durationMs: entry.durationMs,
+      });
+    });
+
+    // Add task status change entries
+    const taskPages = taskActivity?.pages ?? [];
+    taskPages.flat().forEach((activity: Activity) => {
+      if (activity.type === 'status_changed' && activity.details) {
+        entries.push({
+          id: activity.id,
+          timestamp: activity.timestamp,
+          type: 'task',
+          previousStatus: String(activity.details.from || 'unknown'),
+          newStatus: String(activity.details.status || 'unknown'),
+          taskId: activity.taskId,
+          taskTitle: activity.taskTitle,
+        });
+      }
+    });
+
+    // Sort by timestamp descending
+    return entries.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [agentHistory, taskActivity]);
 
   // Group by day
-  const grouped = (history || []).reduce<Record<string, StatusHistoryEntry[]>>((acc, entry) => {
+  const grouped = allEntries.reduce<Record<string, UnifiedEntry[]>>((acc, entry) => {
     const day = entry.timestamp.slice(0, 10);
     if (!acc[day]) acc[day] = [];
     acc[day].push(entry);
@@ -172,63 +248,78 @@ function StatusHistoryPanel({ onTaskClick }: StatusHistoryPanelProps) {
               </div>
             </div>
             <div className="space-y-1">
-              {grouped[day].map((entry) => (
-                <div
-                  key={entry.id}
-                  className={cn(
-                    'flex items-center gap-3 py-2.5 px-3 rounded-md transition-colors',
-                    entry.taskId && onTaskClick
-                      ? 'hover:bg-muted/50 cursor-pointer'
-                      : 'hover:bg-muted/30'
-                  )}
-                  onClick={() => entry.taskId && onTaskClick?.(entry.taskId)}
-                  role={entry.taskId && onTaskClick ? 'button' : undefined}
-                  tabIndex={entry.taskId && onTaskClick ? 0 : undefined}
-                  onKeyDown={(e) => {
-                    if ((e.key === 'Enter' || e.key === ' ') && entry.taskId && onTaskClick) {
-                      e.preventDefault();
-                      onTaskClick(entry.taskId);
-                    }
-                  }}
-                >
-                  <span className="text-xs text-muted-foreground w-16 shrink-0 font-mono">
-                    {new Date(entry.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                  <StatusBadge status={entry.previousStatus} />
-                  <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                  <StatusBadge status={entry.newStatus} />
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                    {entry.taskId && (
-                      <span className="text-sm text-muted-foreground shrink-0">{entry.taskId}</span>
+              {grouped[day].map((entry) => {
+                const isTaskStatus = entry.type === 'task';
+                // Color for task title based on entry type and status
+                const titleColor = isTaskStatus
+                  ? entry.newStatus === 'done'
+                    ? 'text-green-500'
+                    : entry.newStatus === 'in-progress'
+                      ? 'text-blue-500'
+                      : entry.newStatus === 'blocked'
+                        ? 'text-amber-500'
+                        : 'text-slate-500'
+                  : entry.newStatus === 'working' || entry.newStatus === 'thinking'
+                    ? 'text-green-500'
+                    : entry.newStatus === 'sub-agent'
+                      ? 'text-blue-500'
+                      : entry.newStatus === 'error'
+                        ? 'text-red-500'
+                        : 'text-gray-500';
+
+                return (
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      'flex items-center gap-3 py-2.5 px-3 rounded-md transition-colors',
+                      entry.taskId && onTaskClick
+                        ? 'hover:bg-muted/50 cursor-pointer'
+                        : 'hover:bg-muted/30'
                     )}
-                    <span
-                      className={cn(
-                        'text-sm truncate',
-                        entry.taskId && onTaskClick && 'hover:underline',
-                        // Color based on newStatus
-                        entry.newStatus === 'working' || entry.newStatus === 'thinking'
-                          ? 'text-green-500'
-                          : entry.newStatus === 'sub-agent'
-                            ? 'text-blue-500'
-                            : entry.newStatus === 'error'
-                              ? 'text-red-500'
-                              : 'text-gray-500'
+                    onClick={() => entry.taskId && onTaskClick?.(entry.taskId)}
+                    role={entry.taskId && onTaskClick ? 'button' : undefined}
+                    tabIndex={entry.taskId && onTaskClick ? 0 : undefined}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && entry.taskId && onTaskClick) {
+                        e.preventDefault();
+                        onTaskClick(entry.taskId);
+                      }
+                    }}
+                  >
+                    <span className="text-xs text-muted-foreground w-16 shrink-0 font-mono">
+                      {new Date(entry.timestamp).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    <StatusBadge status={entry.previousStatus} isTaskStatus={isTaskStatus} />
+                    <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <StatusBadge status={entry.newStatus} isTaskStatus={isTaskStatus} />
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      {entry.taskId && (
+                        <span className="text-sm text-muted-foreground shrink-0">
+                          {entry.taskId}
+                        </span>
                       )}
-                      title={entry.taskTitle || 'No task'}
-                    >
-                      {entry.taskTitle || '—'}
-                    </span>
+                      <span
+                        className={cn(
+                          'text-sm truncate',
+                          onTaskClick && 'hover:underline',
+                          titleColor
+                        )}
+                        title={entry.taskTitle || 'No task'}
+                      >
+                        {entry.taskTitle || '—'}
+                      </span>
+                    </div>
+                    {entry.durationMs && (
+                      <span className="text-xs text-muted-foreground ml-auto shrink-0">
+                        {formatDurationMs(entry.durationMs)}
+                      </span>
+                    )}
                   </div>
-                  {entry.durationMs && (
-                    <span className="text-xs text-muted-foreground ml-auto shrink-0">
-                      {formatDurationMs(entry.durationMs)}
-                    </span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         );
