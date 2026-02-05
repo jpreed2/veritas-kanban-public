@@ -504,7 +504,11 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function StatusHistoryPanel() {
+interface StatusHistoryPanelProps {
+  onTaskClick?: (taskId: string) => void;
+}
+
+function StatusHistoryPanel({ onTaskClick }: StatusHistoryPanelProps) {
   const { data: history, isLoading } = useStatusHistory(100);
 
   // Group by day
@@ -564,7 +568,21 @@ function StatusHistoryPanel() {
               {grouped[day].map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-3 py-2.5 px-3 rounded-md hover:bg-muted/50 transition-colors"
+                  className={cn(
+                    'flex items-center gap-3 py-2.5 px-3 rounded-md transition-colors',
+                    entry.taskId && onTaskClick
+                      ? 'hover:bg-muted/50 cursor-pointer'
+                      : 'hover:bg-muted/30'
+                  )}
+                  onClick={() => entry.taskId && onTaskClick?.(entry.taskId)}
+                  role={entry.taskId && onTaskClick ? 'button' : undefined}
+                  tabIndex={entry.taskId && onTaskClick ? 0 : undefined}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ' ') && entry.taskId && onTaskClick) {
+                      e.preventDefault();
+                      onTaskClick(entry.taskId);
+                    }
+                  }}
                 >
                   <span className="text-xs text-muted-foreground w-16 shrink-0 font-mono">
                     {new Date(entry.timestamp).toLocaleTimeString([], {
@@ -575,8 +593,14 @@ function StatusHistoryPanel() {
                   <StatusBadge status={entry.previousStatus} />
                   <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
                   <StatusBadge status={entry.newStatus} />
-                  <span className="text-sm truncate flex-1" title={entry.taskTitle}>
-                    {entry.taskTitle}
+                  <span
+                    className={cn(
+                      'text-sm truncate flex-1',
+                      entry.taskId && onTaskClick && 'text-primary hover:underline'
+                    )}
+                    title={entry.taskTitle || 'No task'}
+                  >
+                    {entry.taskTitle || '—'}
                   </span>
                   {entry.durationMs && (
                     <span className="text-xs text-muted-foreground ml-auto shrink-0">
@@ -811,7 +835,7 @@ export function ActivityFeed({ onBack, onTaskClick }: ActivityFeedProps) {
         {/* Status History — 1/3 width */}
         <div className="col-span-1">
           <h3 className="text-sm font-medium text-muted-foreground mb-3">Status History</h3>
-          <StatusHistoryPanel />
+          <StatusHistoryPanel onTaskClick={onTaskClick} />
         </div>
       </div>
     </div>
