@@ -285,10 +285,12 @@ export interface VelocityMetrics {
 export interface TaskCostEntry {
   taskId: string;
   taskTitle?: string;
+  project: string;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
   estimatedCost: number;
+  totalDurationMs: number;
   runs: number;
   avgCostPerRun: number;
 }

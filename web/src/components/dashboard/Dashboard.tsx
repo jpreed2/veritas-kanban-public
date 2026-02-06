@@ -4,8 +4,7 @@ import {
   useTaskCost,
   useUtilization,
   formatTokens, 
-  formatDuration, 
-  formatPercent,
+  formatDuration,
   type MetricsPeriod,
   type TrendDirection,
 } from '@/hooks/useMetrics';
@@ -154,13 +153,6 @@ export function Dashboard() {
     );
   }
 
-  // Color thresholds: green <10% error, yellow 10-25%, red >25%
-  const getErrorRateColor = (rate: number): 'green' | 'yellow' | 'red' => {
-    if (rate > 0.25) return 'red';
-    if (rate > 0.1) return 'yellow';
-    return 'green';
-  };
-
   const getDrillDownTitle = () => {
     switch (drillDown) {
       case 'tasks': return 'Task Details';
@@ -223,50 +215,7 @@ export function Dashboard() {
               <p className="text-xs text-muted-foreground mt-1">Runs will appear here once telemetry data is collected</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
-              {/* Error Rate Card */}
-              <StatCard 
-                title={
-                  <div className="flex items-center justify-between">
-                    <span>Success / Errors</span>
-                    <TrendIndicator 
-                      direction={metrics.trends.successRateTrend} 
-                      change={metrics.trends.successRateChange}
-                    />
-                  </div>
-                }
-                onClick={() => setDrillDown('errors')}
-                clickable
-              >
-                <StatRow 
-                  label="Total Runs" 
-                  value={metrics.runs.runs} 
-                />
-                <StatRow 
-                  label="Successful" 
-                  value={metrics.runs.successes}
-                  subLabel={formatPercent(metrics.runs.successRate)}
-                />
-                <StatRow 
-                  label="Failed" 
-                  value={metrics.runs.failures + metrics.runs.errors}
-                  highlight={metrics.runs.errorRate > 0.1}
-                />
-                <div className="pt-2 border-t mt-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Error Rate</span>
-                    <span className={cn(
-                      'text-lg font-bold',
-                      getErrorRateColor(metrics.runs.errorRate) === 'red' && 'text-red-500',
-                      getErrorRateColor(metrics.runs.errorRate) === 'yellow' && 'text-yellow-500',
-                      getErrorRateColor(metrics.runs.errorRate) === 'green' && 'text-green-500',
-                    )}>
-                      {formatPercent(metrics.runs.errorRate)}
-                    </span>
-                  </div>
-                </div>
-              </StatCard>
-
+            <div className="grid grid-cols-2 gap-4">
               {/* Tokens Card */}
               <StatCard 
                 title={
@@ -454,8 +403,10 @@ export function Dashboard() {
         <HourlyActivityChart period={period} />
       </div>
 
-      {/* Historical Trends Charts */}
-      <TrendsCharts project={project} />
+      {/* Historical Trends Charts (full width) */}
+      <div className="col-span-full">
+        <TrendsCharts project={project} />
+      </div>
 
       {/* Drill-Down Panel */}
       <DrillDownPanel

@@ -1,55 +1,74 @@
 /**
- * WhereTimeWent — Breakdown of time by workstream and mode
+ * WhereTimeWent — Breakdown of time by project (from telemetry)
  * GH #57: Dashboard "Where Time Went" breakdown panel
  */
 
 import { useMemo } from 'react';
-import { useMetrics, formatDuration, type MetricsPeriod } from '@/hooks/useMetrics';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api/helpers';
+import { formatDuration, type MetricsPeriod } from '@/hooks/useMetrics';
 import { Clock } from 'lucide-react';
 
 interface WhereTimeWentProps {
   period: MetricsPeriod;
 }
 
-const MODE_COLORS: Record<string, string> = {
-  coding: '#8b5cf6',
-  research: '#06b6d4',
-  documentation: '#f59e0b',
-  maintenance: '#6b7280',
-  planning: '#22c55e',
-};
+const PROJECT_COLORS: string[] = [
+  '#8b5cf6', // purple
+  '#06b6d4', // cyan
+  '#f59e0b', // amber
+  '#22c55e', // green
+  '#ef4444', // red
+  '#3b82f6', // blue
+  '#ec4899', // pink
+  '#6b7280', // gray
+];
+
+interface TaskCostEntry {
+  taskId: string;
+  taskTitle: string;
+  project: string;
+  estimatedCost: number;
+  totalTokens: number;
+  totalDurationMs: number;
+  runs: number;
+}
+
+interface TaskCostResult {
+  totalCost: number;
+  avgCostPerTask: number;
+  tasks: TaskCostEntry[];
+}
 
 export function WhereTimeWent({ period }: WhereTimeWentProps) {
-  const { data: metrics } = useMetrics(period);
+  // Pull task-level cost data which includes project and duration
+  const { data: taskCost } = useQuery<TaskCostResult>({
+    queryKey: ['task-cost', period],
+    queryFn: () => apiFetch<TaskCostResult>(`/api/metrics/task-cost?period=${period}`),
+    staleTime: 60_000,
+  });
 
   const breakdown = useMemo(() => {
-    if (!metrics?.duration) return [];
+    if (!taskCost?.tasks?.length) return [];
 
-    // Aggregate by project from task durations
+    // Aggregate duration by project
     const byProject = new Map<string, number>();
-    const totalMs = (metrics.duration?.avgMs || 0) * (metrics.duration?.runs || 1);
 
-    // Use available data to create a breakdown
-    if (metrics.tasks.byStatus) {
-      const statuses = metrics.tasks.byStatus;
-      const total = Object.values(statuses).reduce((s, v) => s + v, 0) || 1;
-
-      // Estimate time distribution based on task counts
-      const inProgress = statuses['in-progress'] || 0;
-      const done = statuses.done || 0;
-      const blocked = statuses.blocked || 0;
-      const todo = statuses.todo || 0;
-
-      if (done > 0) byProject.set('Completed Work', (done / total) * totalMs);
-      if (inProgress > 0) byProject.set('Active Work', (inProgress / total) * totalMs);
-      if (blocked > 0) byProject.set('Blocked', (blocked / total) * totalMs);
-      if (todo > 0) byProject.set('Queued', (todo / total) * totalMs);
+    for (const task of taskCost.tasks) {
+      const project = task.project || 'Unassigned';
+      byProject.set(project, (byProject.get(project) || 0) + task.totalDurationMs);
     }
 
+    const totalMs = Array.from(byProject.values()).reduce((s, v) => s + v, 0);
+
     return Array.from(byProject.entries())
-      .map(([name, ms]) => ({ name, ms, percentage: totalMs > 0 ? (ms / totalMs) * 100 : 0 }))
+      .map(([name, ms]) => ({
+        name,
+        ms,
+        percentage: totalMs > 0 ? (ms / totalMs) * 100 : 0,
+      }))
       .sort((a, b) => b.ms - a.ms);
-  }, [metrics]);
+  }, [taskCost]);
 
   const totalMs = breakdown.reduce((sum, b) => sum + b.ms, 0);
 
@@ -67,8 +86,7 @@ export function WhereTimeWent({ period }: WhereTimeWentProps) {
       ) : (
         <div className="space-y-2.5">
           {breakdown.map((item, i) => {
-            const colors = Object.values(MODE_COLORS);
-            const color = colors[i % colors.length];
+            const color = PROJECT_COLORS[i % PROJECT_COLORS.length];
             return (
               <div key={item.name}>
                 <div className="flex items-center justify-between text-xs mb-1">

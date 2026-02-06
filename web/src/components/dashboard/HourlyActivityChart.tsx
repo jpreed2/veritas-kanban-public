@@ -58,11 +58,14 @@ export function HourlyActivityChart({ period }: HourlyActivityChartProps) {
         ))}
       </div>
 
-      {/* X-axis labels */}
-      <div className="flex justify-between text-[9px] text-muted-foreground/50 mt-1 px-0.5">
-        {hourlyBars.filter((b) => b.label).map((bar) => (
-          <span key={bar.hour}>{bar.label}</span>
-        ))}
+      {/* Axis labels */}
+      <div className="flex items-end gap-1">
+        <span className="text-[9px] text-muted-foreground/50 -rotate-90 origin-bottom-left translate-y-1 w-0">Events</span>
+        <div className="flex-1 flex justify-between text-[9px] text-muted-foreground/50 mt-1 px-0.5">
+          {hourlyBars.filter((b) => b.label).map((bar) => (
+            <span key={bar.hour}>{bar.label}</span>
+          ))}
+        </div>
       </div>
     </div>
   );

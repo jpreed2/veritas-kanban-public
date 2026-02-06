@@ -93,7 +93,7 @@ export function AgentComparison({ project }: AgentComparisonProps) {
   const { data, isLoading, error } = useQuery<AgentComparisonResult>({
     queryKey: ['agent-comparison', period, project],
     queryFn: async () => {
-      const params = new URLSearchParams({ period, minRuns: '3' });
+      const params = new URLSearchParams({ period, minRuns: '1' });
       if (project) params.set('project', project);
       return apiFetch<AgentComparisonResult>(`/api/metrics/agents/comparison?${params}`);
     },

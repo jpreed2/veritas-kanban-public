@@ -9,7 +9,13 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Clock } from 'lucide-react';
+import { Clock, Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { MetricsPeriod } from '@/hooks/useMetrics';
 
 interface ActivityClockProps {
@@ -95,6 +101,20 @@ export function ActivityClock({ period }: ActivityClockProps) {
       <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
         <Clock className="w-4 h-4 text-muted-foreground" />
         Activity Clock
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <Info className="w-3 h-3 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[250px]">
+              <p className="text-xs">
+                24-hour ring showing when agent activity happens.
+                Brighter/thicker segments = more activity at that hour.
+                Midnight at top, noon at bottom.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </h3>
 
       <div className="flex items-center justify-center">

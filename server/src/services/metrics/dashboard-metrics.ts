@@ -788,7 +788,7 @@ export async function computeTaskCost(
 
   const taskCosts = new Map<
     string,
-    { inputTokens: number; outputTokens: number; totalTokens: number; cost: number; runs: number }
+    { inputTokens: number; outputTokens: number; totalTokens: number; cost: number; runs: number; totalDurationMs: number }
   >();
 
   for (const filePath of files) {
@@ -810,6 +810,7 @@ export async function computeTaskCost(
               totalTokens: 0,
               cost: 0,
               runs: 0,
+              totalDurationMs: 0,
             };
             existing.inputTokens += tokenEvent.inputTokens;
             existing.outputTokens += tokenEvent.outputTokens;
@@ -826,6 +827,23 @@ export async function computeTaskCost(
             existing.runs++;
             taskCosts.set(event.taskId, existing);
           }
+
+          // Capture duration from run.completed events
+          if (event.type === 'run.completed' && event.taskId) {
+            const durationMs = (event as unknown as Record<string, unknown>).durationMs;
+            if (typeof durationMs === 'number' && durationMs > 0) {
+              const existing = taskCosts.get(event.taskId) || {
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                cost: 0,
+                runs: 0,
+                totalDurationMs: 0,
+              };
+              existing.totalDurationMs += durationMs;
+              taskCosts.set(event.taskId, existing);
+            }
+          }
         } catch {
           continue;
         }
@@ -837,9 +855,9 @@ export async function computeTaskCost(
     }
   }
 
-  // Look up task titles
+  // Look up task titles and projects
   const allTasks = await taskService.listTasks();
-  const taskMap = new Map(allTasks.map((t) => [t.id, t.title]));
+  const taskMap = new Map(allTasks.map((t) => [t.id, { title: t.title, project: t.project }]));
 
   let totalCost = 0;
   const tasks: import('./types.js').TaskCostEntry[] = [];
@@ -847,13 +865,16 @@ export async function computeTaskCost(
   for (const [taskId, data] of taskCosts) {
     const cost = Math.round(data.cost * 100) / 100;
     totalCost += cost;
+    const taskInfo = taskMap.get(taskId);
     tasks.push({
       taskId,
-      taskTitle: taskMap.get(taskId),
+      taskTitle: taskInfo?.title,
+      project: taskInfo?.project || 'unassigned',
       inputTokens: data.inputTokens,
       outputTokens: data.outputTokens,
       totalTokens: data.totalTokens,
       estimatedCost: cost,
+      totalDurationMs: data.totalDurationMs,
       runs: data.runs,
       avgCostPerRun: data.runs > 0 ? Math.round((cost / data.runs) * 100) / 100 : 0,
     });
