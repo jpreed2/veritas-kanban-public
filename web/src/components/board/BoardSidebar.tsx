@@ -29,6 +29,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { BudgetCard } from '@/components/dashboard/BudgetCard';
+import { MultiAgentPanel } from './MultiAgentPanel';
 
 // ─── Agent State Types ───────────────────────────────────────────────
 
@@ -423,6 +424,14 @@ export function BoardSidebar({ onTaskClick }: BoardSidebarProps) {
       {/* Agent Status — fully expanded, always visible */}
       <div className="rounded-lg border bg-card p-3">
         <AgentStatusPanel onTaskClick={onTaskClick} />
+      </div>
+
+      {/* Multi-Agent Registry — all registered agents */}
+      <div className="rounded-lg border bg-card p-3">
+        <h3 className="text-[10px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+          Agent Registry
+        </h3>
+        <MultiAgentPanel onTaskClick={onTaskClick} />
       </div>
 
       {/* Recent Status Changes */}

@@ -102,6 +102,53 @@ export const agentApi = {
   },
 };
 
+// ─── Agent Registry API ──────────────────────────────────────────
+
+export interface RegisteredAgent {
+  id: string;
+  name: string;
+  model?: string;
+  provider?: string;
+  capabilities?: Array<{ name: string; description?: string }>;
+  version?: string;
+  status: 'online' | 'offline' | 'busy';
+  currentTask?: string;
+  currentTaskTitle?: string;
+  lastHeartbeat?: string;
+  registeredAt: string;
+}
+
+export interface RegistryStats {
+  totalAgents: number;
+  onlineAgents: number;
+  busyAgents: number;
+  offlineAgents: number;
+}
+
+export const registryApi = {
+  /** List all registered agents */
+  list: async (filters?: { status?: string; capability?: string }): Promise<RegisteredAgent[]> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.capability) params.set('capability', filters.capability);
+    const qs = params.toString();
+    const response = await fetch(`${API_BASE}/agents/register${qs ? `?${qs}` : ''}`);
+    return handleResponse<RegisteredAgent[]>(response);
+  },
+
+  /** Get registry statistics */
+  stats: async (): Promise<RegistryStats> => {
+    const response = await fetch(`${API_BASE}/agents/register/stats`);
+    return handleResponse<RegistryStats>(response);
+  },
+
+  /** Get a specific agent */
+  get: async (id: string): Promise<RegisteredAgent> => {
+    const response = await fetch(`${API_BASE}/agents/register/${id}`);
+    return handleResponse<RegisteredAgent>(response);
+  },
+};
+
 export const routingApi = {
   /** Get current routing configuration */
   getConfig: async (): Promise<AgentRoutingConfig> => {
