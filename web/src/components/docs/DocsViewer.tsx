@@ -5,7 +5,7 @@
  * Inspired by @nateherk's Klouse dashboard docs section.
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE, handleResponse } from '@/lib/api/helpers';
 import {
@@ -13,7 +13,6 @@ import {
   FolderOpen,
   Search,
   Edit3,
-  Eye,
   Save,
   X,
   Plus,

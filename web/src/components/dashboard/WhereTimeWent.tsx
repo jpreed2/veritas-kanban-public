@@ -5,19 +5,11 @@
 
 import { useMemo } from 'react';
 import { useMetrics, formatDuration, type MetricsPeriod } from '@/hooks/useMetrics';
-import { Briefcase, Clock, Code, FileText, Search, Wrench } from 'lucide-react';
+import { Clock } from 'lucide-react';
 
 interface WhereTimeWentProps {
   period: MetricsPeriod;
 }
-
-const MODE_ICONS: Record<string, typeof Clock> = {
-  coding: Code,
-  research: Search,
-  documentation: FileText,
-  maintenance: Wrench,
-  planning: Briefcase,
-};
 
 const MODE_COLORS: Record<string, string> = {
   coding: '#8b5cf6',
@@ -35,7 +27,7 @@ export function WhereTimeWent({ period }: WhereTimeWentProps) {
 
     // Aggregate by project from task durations
     const byProject = new Map<string, number>();
-    const totalMs = (metrics.duration.averageMs || 0) * (metrics.tasks.completed || 1);
+    const totalMs = (metrics.duration?.avgMs || 0) * (metrics.duration?.runs || 1);
 
     // Use available data to create a breakdown
     if (metrics.tasks.byStatus) {

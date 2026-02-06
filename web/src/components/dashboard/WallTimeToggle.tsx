@@ -18,8 +18,8 @@ export function WallTimeToggle({ period }: WallTimeToggleProps) {
   const [showActive, setShowActive] = useState(false);
   const { data: metrics } = useMetrics(period);
 
-  const wallTime = metrics?.duration?.totalMs || 0;
-  const activeTime = metrics?.duration?.averageMs ? metrics.duration.averageMs * (metrics.tasks.completed || 0) : 0;
+  const wallTime = metrics?.duration ? (metrics.duration.avgMs * (metrics.duration.runs || 1)) : 0;
+  const activeTime = metrics?.duration?.avgMs || 0;
   const efficiency = wallTime > 0 ? (activeTime / wallTime) * 100 : 0;
 
   const displayTime = showActive ? activeTime : wallTime;
