@@ -16,6 +16,9 @@ import {
   percentile,
   formatDurationForRecommendation,
   formatTokensForRecommendation,
+  toLocalDateStr,
+  getTodayStr,
+  getElapsedTodayMs,
 } from './helpers.js';
 import { getEventFiles, createLineReader } from './telemetry-reader.js';
 import { computeTaskMetrics } from './task-metrics.js';
@@ -898,16 +901,11 @@ export async function computeUtilization(
   telemetryDir: string,
   period: MetricsPeriod,
   from?: string,
-  to?: string
+  to?: string,
+  utcOffsetHours?: number,
 ): Promise<import('./types.js').UtilizationMetrics> {
   const since = getPeriodStart(period, from);
   const files = await getEventFiles(telemetryDir, since);
-
-  // Helper: convert UTC timestamp to local date string (YYYY-MM-DD)
-  const toLocalDateStr = (isoTimestamp: string): string => {
-    const d = new Date(isoTimestamp);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
 
   // Track time between run.started and run.completed events per day
   const dailyActive = new Map<string, number>();
@@ -931,7 +929,7 @@ export async function computeUtilization(
             const agent = runEvent.agent || 'unknown';
             const durationMs = runEvent.durationMs || 0;
             if (durationMs > 0) {
-              const dateStr = toLocalDateStr(event.timestamp);
+              const dateStr = toLocalDateStr(event.timestamp, utcOffsetHours);
               dailyActive.set(dateStr, (dailyActive.get(dateStr) || 0) + durationMs);
             }
             runStarts.delete(agent);
@@ -954,9 +952,7 @@ export async function computeUtilization(
   let totalAvailableMs = 0;
 
   const sortedDates = [...dailyActive.keys()].sort();
-  // Use system local time for "today" detection (server runs in local TZ)
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayStr = getTodayStr(utcOffsetHours);
 
   for (const date of sortedDates) {
     const activeMs = dailyActive.get(date) || 0;
@@ -964,7 +960,7 @@ export async function computeUtilization(
     // For the current day, use elapsed time since midnight instead of full 24h
     let availableMs = MS_PER_DAY;
     if (date === todayStr) {
-      availableMs = (now.getHours() * 3600000) + (now.getMinutes() * 60000) + (now.getSeconds() * 1000);
+      availableMs = getElapsedTodayMs(utcOffsetHours);
       availableMs = Math.max(availableMs, activeMs); // At least as much as active time
     }
 

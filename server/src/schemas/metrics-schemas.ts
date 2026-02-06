@@ -9,6 +9,7 @@ export const MetricsQuerySchema = z.object({
   project: z.string().optional(),
   from: z.string().optional(), // ISO date string for custom period start
   to: z.string().optional(), // ISO date string for custom period end
+  tz: z.coerce.number().min(-12).max(14).optional(), // UTC offset in hours (e.g. -6 for CST, 9 for JST). Defaults to server time.
 });
 
 /**

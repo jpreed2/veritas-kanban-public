@@ -397,6 +397,9 @@ async function fetchUtilization(
   params.set('period', period);
   if (from) params.set('from', from);
   if (to) params.set('to', to);
+  // Pass client timezone offset so server buckets dates correctly
+  const offsetHours = -(new Date().getTimezoneOffset() / 60);
+  params.set('tz', String(offsetHours));
   return apiFetch<UtilizationMetrics>(`${API_BASE}/metrics/utilization?${params}`);
 }
 

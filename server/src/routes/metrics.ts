@@ -201,8 +201,8 @@ router.get(
   validate({ query: MetricsQuerySchema }),
   asyncHandler(async (req: ValidatedRequest<unknown, MetricsQuery>, res) => {
     const metrics = getMetricsService();
-    const { period, from, to } = req.validated.query!;
-    const result = await metrics.getUtilization(period, from, to);
+    const { period, from, to, tz } = req.validated.query!;
+    const result = await metrics.getUtilization(period, from, to, tz);
     res.json(result);
   })
 );

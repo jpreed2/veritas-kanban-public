@@ -129,14 +129,17 @@ export class MetricsService {
   async getUtilization(
     period: MetricsPeriod,
     from?: string,
-    to?: string
+    to?: string,
+    utcOffsetHours?: number,
   ): Promise<import('./types.js').UtilizationMetrics> {
     const { statusHistoryService } = await import('../status-history-service.js');
-    const { getPeriodStart } = await import('./helpers.js');
+    const { getPeriodStart, getTodayStr, getElapsedTodayMs } = await import('./helpers.js');
 
     const since = getPeriodStart(period, from);
     const sinceDate = since ? new Date(since) : null;
     const toDate = to ? new Date(to) : new Date();
+    const todayStr = getTodayStr(utcOffsetHours);
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
     // Get daily summaries for the period
     const daily: import('./types.js').DailyUtilization[] = [];
@@ -150,7 +153,13 @@ export class MetricsService {
       const dateStr = d.toISOString().slice(0, 10);
       const summary = await statusHistoryService.getDailySummary(dateStr);
 
-      const dayTotal = summary.activeMs + summary.idleMs + summary.errorMs;
+      // For today, use elapsed time instead of full-day totals
+      let dayTotal = summary.activeMs + summary.idleMs + summary.errorMs;
+      if (dateStr === todayStr && dayTotal > 0) {
+        const elapsed = getElapsedTodayMs(utcOffsetHours);
+        dayTotal = Math.max(dayTotal, elapsed);
+      }
+
       totalActiveMs += summary.activeMs;
       totalIdleMs += summary.idleMs;
       totalErrorMs += summary.errorMs;

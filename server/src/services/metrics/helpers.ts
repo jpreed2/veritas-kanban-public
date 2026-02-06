@@ -201,3 +201,47 @@ export function formatTokensForRecommendation(tokens: number): string {
   if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`;
   return `${(tokens / 1000000).toFixed(2)}M`;
 }
+
+/**
+ * Convert a UTC ISO timestamp to a local date string (YYYY-MM-DD)
+ * using the given UTC offset in hours. Defaults to server local time.
+ *
+ * @param isoTimestamp - UTC timestamp (e.g. "2026-02-06T01:20:00Z")
+ * @param utcOffsetHours - Optional UTC offset in hours (e.g. -6 for CST, 9 for JST)
+ * @returns Local date string like "2026-02-05"
+ */
+export function toLocalDateStr(isoTimestamp: string, utcOffsetHours?: number): string {
+  const d = new Date(isoTimestamp);
+  if (utcOffsetHours !== undefined) {
+    // Apply explicit offset: shift UTC time by offset hours
+    const utcMs = d.getTime() + (d.getTimezoneOffset() * 60000); // normalize to true UTC
+    const localMs = utcMs + (utcOffsetHours * 3600000);
+    const local = new Date(localMs);
+    return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+  }
+  // Default: use server local time
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Get "today" as YYYY-MM-DD in the given timezone.
+ * @param utcOffsetHours - Optional UTC offset (defaults to server local)
+ */
+export function getTodayStr(utcOffsetHours?: number): string {
+  return toLocalDateStr(new Date().toISOString(), utcOffsetHours);
+}
+
+/**
+ * Get elapsed milliseconds since midnight in the given timezone.
+ * @param utcOffsetHours - Optional UTC offset (defaults to server local)
+ */
+export function getElapsedTodayMs(utcOffsetHours?: number): number {
+  const now = new Date();
+  if (utcOffsetHours !== undefined) {
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const localMs = utcMs + (utcOffsetHours * 3600000);
+    const local = new Date(localMs);
+    return (local.getHours() * 3600000) + (local.getMinutes() * 60000) + (local.getSeconds() * 1000);
+  }
+  return (now.getHours() * 3600000) + (now.getMinutes() * 60000) + (now.getSeconds() * 1000);
+}
