@@ -14,85 +14,100 @@ vi.mock('../../storage/fs-helpers.js', () => ({
 }));
 
 // Must import after mock
-const { AgentRegistryService } = await import('../../services/agent-registry-service.js');
+const { getAgentRegistryService, disposeAgentRegistryService } =
+  await import('../../services/agent-registry-service.js');
+import type { RegisteredAgent } from '../../services/agent-registry-service.js';
 
 describe('AgentRegistryService', () => {
-  let service: InstanceType<typeof AgentRegistryService>;
-
   beforeEach(() => {
-    service = new AgentRegistryService();
+    // Ensure fresh instance for each test
+    disposeAgentRegistryService();
   });
 
   afterEach(() => {
-    service.dispose();
+    disposeAgentRegistryService();
   });
 
   // ── Registration ─────────────────────────────────────────────
 
   describe('register()', () => {
     it('should register a new agent', () => {
+      const service = getAgentRegistryService();
       const result = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code', 'test'],
+        id: 'test-agent',
+        name: 'Test Agent',
+        model: 'claude-sonnet-4',
+        provider: 'anthropic',
+        capabilities: [{ name: 'code' }, { name: 'test' }],
       });
 
-      expect(result.isNew).toBe(true);
-      expect(result.agent.name).toBe('test-agent');
-      expect(result.agent.agentType).toBe('claude-code');
-      expect(result.agent.capabilities).toEqual(['code', 'test']);
-      expect(result.agent.status).toBe('alive');
-      expect(result.agent.id).toBeDefined();
-      expect(result.agent.registeredAt).toBeDefined();
-      expect(result.agent.lastHeartbeat).toBeDefined();
+      expect(result.id).toBe('test-agent');
+      expect(result.name).toBe('Test Agent');
+      expect(result.model).toBe('claude-sonnet-4');
+      expect(result.provider).toBe('anthropic');
+      expect(result.capabilities).toHaveLength(2);
+      expect(result.status).toBe('online');
+      expect(result.registeredAt).toBeDefined();
+      expect(result.lastHeartbeat).toBeDefined();
     });
 
-    it('should re-register an existing agent by name', () => {
+    it('should update an existing agent on re-register', () => {
+      const service = getAgentRegistryService();
+
       const first = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
       });
 
       const second = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code', 'test', 'review'],
-        model: 'claude-sonnet-4-20250514',
+        id: 'test-agent',
+        name: 'Test Agent Updated',
+        model: 'claude-sonnet-4',
+        capabilities: [{ name: 'code' }, { name: 'test' }, { name: 'review' }],
       });
 
-      expect(second.isNew).toBe(false);
-      expect(second.agent.id).toBe(first.agent.id);
-      expect(second.agent.capabilities).toEqual(['code', 'test', 'review']);
-      expect(second.agent.model).toBe('claude-sonnet-4-20250514');
-      expect(second.agent.status).toBe('alive');
+      expect(second.id).toBe(first.id);
+      expect(second.name).toBe('Test Agent Updated');
+      expect(second.capabilities).toHaveLength(3);
+      expect(second.model).toBe('claude-sonnet-4');
+      expect(second.registeredAt).toBe(first.registeredAt); // Should preserve original registration time
+      expect(second.status).toBe('online');
     });
 
-    it('should register multiple agents with different names', () => {
-      service.register({ name: 'agent-1', agentType: 'claude-code', capabilities: ['code'] });
-      service.register({ name: 'agent-2', agentType: 'copilot', capabilities: ['code', 'review'] });
+    it('should register multiple agents with different IDs', () => {
+      const service = getAgentRegistryService();
 
-      const agents = service.listAgents({ includeOffline: true });
+      service.register({ id: 'agent-1', name: 'Agent 1', capabilities: [{ name: 'code' }] });
+      service.register({
+        id: 'agent-2',
+        name: 'Agent 2',
+        capabilities: [{ name: 'code' }, { name: 'review' }],
+      });
+
+      const agents = service.list();
       expect(agents).toHaveLength(2);
     });
 
-    it('should preserve and merge metadata on re-register', () => {
+    it('should use new metadata on re-register when provided', () => {
+      const service = getAgentRegistryService();
+
       service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
         metadata: { host: 'mac-mini', session: 'abc' },
       });
 
       const result = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
         metadata: { session: 'def', newField: true },
       });
 
-      expect(result.agent.metadata).toEqual({
-        host: 'mac-mini',
+      // Service uses new metadata when provided (doesn't merge with old)
+      expect(result.metadata).toEqual({
         session: 'def',
         newField: true,
       });
@@ -103,282 +118,299 @@ describe('AgentRegistryService', () => {
 
   describe('heartbeat()', () => {
     it('should update agent status', () => {
-      const { agent } = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+      const service = getAgentRegistryService();
+
+      const agent = service.register({
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
       });
 
       const updated = service.heartbeat(agent.id, {
-        status: 'working',
-        taskId: 'TASK-1',
-        taskTitle: 'Fix the bug',
+        status: 'busy',
+        currentTaskId: 'TASK-1',
+        currentTaskTitle: 'Fix the bug',
       });
 
       expect(updated).not.toBeNull();
-      expect(updated!.status).toBe('working');
-      expect(updated!.activeSession).toBeDefined();
-      expect(updated!.activeSession!.taskId).toBe('TASK-1');
-      expect(updated!.activeSession!.taskTitle).toBe('Fix the bug');
+      expect(updated!.status).toBe('busy');
+      expect(updated!.currentTaskId).toBe('TASK-1');
+      expect(updated!.currentTaskTitle).toBe('Fix the bug');
     });
 
     it('should return null for unknown agent', () => {
-      const result = service.heartbeat('nonexistent', { status: 'alive' });
+      const service = getAgentRegistryService();
+      const result = service.heartbeat('nonexistent', { status: 'online' });
       expect(result).toBeNull();
     });
 
-    it('should create a new session when task changes', () => {
-      const { agent } = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+    it('should update lastHeartbeat timestamp', () => {
+      const service = getAgentRegistryService();
+
+      const agent = service.register({
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
       });
 
-      service.heartbeat(agent.id, { status: 'working', taskId: 'TASK-1', taskTitle: 'First task' });
-      service.heartbeat(agent.id, { status: 'working', taskId: 'TASK-2', taskTitle: 'Second task' });
+      const originalHeartbeat = agent.lastHeartbeat;
 
-      const updated = service.getAgent(agent.id);
-      expect(updated!.activeSession!.taskId).toBe('TASK-2');
+      // Wait a tiny bit to ensure timestamp changes
+      vi.useFakeTimers();
+      vi.advanceTimersByTime(100);
 
-      const history = service.getSessionHistory(agent.id);
-      expect(history).toHaveLength(1);
-      expect(history[0].taskId).toBe('TASK-1');
-      expect(history[0].outcome).toBe('success');
+      const updated = service.heartbeat(agent.id, { status: 'busy' });
+
+      vi.useRealTimers();
+
+      expect(updated!.lastHeartbeat).not.toBe(originalHeartbeat);
     });
 
-    it('should end session on idle status', () => {
-      const { agent } = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+    it('should update task information', () => {
+      const service = getAgentRegistryService();
+
+      const agent = service.register({
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
       });
 
-      service.heartbeat(agent.id, { status: 'working', taskId: 'TASK-1' });
-      service.heartbeat(agent.id, { status: 'idle', message: 'Done with the task' });
+      service.heartbeat(agent.id, {
+        status: 'busy',
+        currentTaskId: 'TASK-1',
+        currentTaskTitle: 'First task',
+      });
+      const updated = service.heartbeat(agent.id, {
+        status: 'busy',
+        currentTaskId: 'TASK-2',
+        currentTaskTitle: 'Second task',
+      });
 
-      const updated = service.getAgent(agent.id);
-      expect(updated!.activeSession).toBeUndefined();
-
-      const history = service.getSessionHistory(agent.id);
-      expect(history).toHaveLength(1);
-      expect(history[0].outcome).toBe('success');
-      expect(history[0].summary).toBe('Done with the task');
+      expect(updated!.currentTaskId).toBe('TASK-2');
+      expect(updated!.currentTaskTitle).toBe('Second task');
     });
 
-    it('should end session on error status with failure outcome', () => {
-      const { agent } = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+    it('should clear task on idle status', () => {
+      const service = getAgentRegistryService();
+
+      const agent = service.register({
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
       });
 
-      service.heartbeat(agent.id, { status: 'working', taskId: 'TASK-1' });
-      service.heartbeat(agent.id, { status: 'error', message: 'Something broke' });
+      service.heartbeat(agent.id, { status: 'busy', currentTaskId: 'TASK-1' });
+      const updated = service.heartbeat(agent.id, {
+        status: 'idle',
+        currentTaskId: '',
+        currentTaskTitle: '',
+      });
 
-      const history = service.getSessionHistory(agent.id);
-      expect(history[0].outcome).toBe('failure');
-      expect(history[0].summary).toBe('Something broke');
+      expect(updated!.status).toBe('idle');
+      expect(updated!.currentTaskId).toBeUndefined();
+      expect(updated!.currentTaskTitle).toBeUndefined();
     });
 
-    it('should update capabilities on heartbeat', () => {
-      const { agent } = service.register({
-        name: 'test-agent',
-        agentType: 'claude-code',
-        capabilities: ['code'],
+    it('should merge metadata on heartbeat', () => {
+      const service = getAgentRegistryService();
+
+      const agent = service.register({
+        id: 'test-agent',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
+        metadata: { host: 'mac-mini' },
       });
 
-      service.heartbeat(agent.id, { status: 'alive', capabilities: ['code', 'test', 'deploy'] });
+      service.heartbeat(agent.id, { metadata: { session: 'abc', ping: Date.now() } });
 
-      const updated = service.getAgent(agent.id);
-      expect(updated!.capabilities).toEqual(['code', 'test', 'deploy']);
+      const updated = service.get(agent.id);
+      expect(updated!.metadata).toEqual({
+        host: 'mac-mini',
+        session: 'abc',
+        ping: expect.any(Number),
+      });
     });
   });
 
   // ── Listing ──────────────────────────────────────────────────
 
-  describe('listAgents()', () => {
-    it('should list active agents', () => {
-      service.register({ name: 'a1', agentType: 'claude-code', capabilities: ['code'] });
-      service.register({ name: 'a2', agentType: 'copilot', capabilities: ['code', 'review'] });
+  describe('list()', () => {
+    it('should list all registered agents', () => {
+      const service = getAgentRegistryService();
 
-      const agents = service.listAgents();
+      service.register({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'code' }] });
+      service.register({
+        id: 'a2',
+        name: 'Agent 2',
+        capabilities: [{ name: 'code' }, { name: 'review' }],
+      });
+
+      const agents = service.list();
       expect(agents).toHaveLength(2);
     });
 
     it('should filter by status', () => {
-      const { agent: a1 } = service.register({ name: 'a1', agentType: 'claude-code', capabilities: ['code'] });
-      service.register({ name: 'a2', agentType: 'copilot', capabilities: ['code'] });
+      const service = getAgentRegistryService();
 
-      service.heartbeat(a1.id, { status: 'working', taskId: 'T1' });
+      const a1 = service.register({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'code' }] });
+      service.register({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'code' }] });
 
-      const working = service.listAgents({ status: 'working' });
-      expect(working).toHaveLength(1);
-      expect(working[0].name).toBe('a1');
+      service.heartbeat(a1.id, { status: 'busy', currentTaskId: 'T1' });
+
+      const busy = service.list({ status: 'busy' });
+      expect(busy).toHaveLength(1);
+      expect(busy[0].name).toBe('Agent 1');
     });
 
     it('should filter by capability', () => {
-      service.register({ name: 'a1', agentType: 'claude-code', capabilities: ['code', 'test'] });
-      service.register({ name: 'a2', agentType: 'copilot', capabilities: ['code'] });
+      const service = getAgentRegistryService();
 
-      const testers = service.listAgents({ capability: 'test' });
+      service.register({
+        id: 'a1',
+        name: 'Agent 1',
+        capabilities: [{ name: 'code' }, { name: 'test' }],
+      });
+      service.register({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'code' }] });
+
+      const testers = service.list({ capability: 'test' });
       expect(testers).toHaveLength(1);
-      expect(testers[0].name).toBe('a1');
+      expect(testers[0].name).toBe('Agent 1');
     });
 
-    it('should filter by agentType', () => {
-      service.register({ name: 'a1', agentType: 'claude-code', capabilities: ['code'] });
-      service.register({ name: 'a2', agentType: 'copilot', capabilities: ['code'] });
+    it('should handle case-insensitive capability matching', () => {
+      const service = getAgentRegistryService();
 
-      const claudeAgents = service.listAgents({ agentType: 'claude-code' });
-      expect(claudeAgents).toHaveLength(1);
-      expect(claudeAgents[0].name).toBe('a1');
-    });
+      service.register({
+        id: 'a1',
+        name: 'Agent 1',
+        capabilities: [{ name: 'Code' }, { name: 'Test' }],
+      });
 
-    it('should exclude offline agents by default', () => {
-      const { agent } = service.register({ name: 'a1', agentType: 'claude-code', capabilities: ['code'] });
-      service.register({ name: 'a2', agentType: 'copilot', capabilities: ['code'] });
-
-      service.heartbeat(agent.id, { status: 'offline' });
-
-      const active = service.listAgents();
-      expect(active).toHaveLength(1);
-      expect(active[0].name).toBe('a2');
-
-      const all = service.listAgents({ includeOffline: true });
-      expect(all).toHaveLength(2);
-    });
-
-    it('should sort by status priority (working > alive > idle)', () => {
-      const { agent: a1 } = service.register({ name: 'idle-agent', agentType: 'a', capabilities: ['code'] });
-      const { agent: a2 } = service.register({ name: 'working-agent', agentType: 'b', capabilities: ['code'] });
-      service.register({ name: 'alive-agent', agentType: 'c', capabilities: ['code'] });
-
-      service.heartbeat(a1.id, { status: 'idle' });
-      service.heartbeat(a2.id, { status: 'working', taskId: 'T1' });
-
-      const agents = service.listAgents();
-      expect(agents[0].name).toBe('working-agent');
-      expect(agents[1].name).toBe('alive-agent');
-      expect(agents[2].name).toBe('idle-agent');
+      const testers = service.list({ capability: 'test' });
+      expect(testers).toHaveLength(1);
     });
   });
 
   // ── Lookup ───────────────────────────────────────────────────
 
-  describe('getAgent() / getAgentByName()', () => {
+  describe('get()', () => {
     it('should get agent by ID', () => {
-      const { agent } = service.register({ name: 'test', agentType: 'x', capabilities: ['code'] });
-      const found = service.getAgent(agent.id);
-      expect(found).not.toBeNull();
-      expect(found!.name).toBe('test');
-    });
+      const service = getAgentRegistryService();
 
-    it('should get agent by name', () => {
-      service.register({ name: 'my-agent', agentType: 'x', capabilities: ['code'] });
-      const found = service.getAgentByName('my-agent');
+      const agent = service.register({
+        id: 'test',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
+      });
+      const found = service.get(agent.id);
+
       expect(found).not.toBeNull();
-      expect(found!.name).toBe('my-agent');
+      expect(found!.name).toBe('Test Agent');
     });
 
     it('should return null for unknown ID', () => {
-      expect(service.getAgent('nope')).toBeNull();
-    });
-
-    it('should return null for unknown name', () => {
-      expect(service.getAgentByName('nope')).toBeNull();
+      const service = getAgentRegistryService();
+      expect(service.get('nope')).toBeNull();
     });
   });
 
-  // ── Session Management ───────────────────────────────────────
+  // ── Find by Capability ───────────────────────────────────────
 
-  describe('endSession()', () => {
-    it('should end an active session', () => {
-      const { agent } = service.register({ name: 'test', agentType: 'x', capabilities: ['code'] });
-      service.heartbeat(agent.id, { status: 'working', taskId: 'T1', taskTitle: 'My Task' });
+  describe('findByCapability()', () => {
+    it('should find agents by capability', () => {
+      const service = getAgentRegistryService();
 
-      const session = service.endSession(agent.id, 'success', 'All done');
-      expect(session).not.toBeNull();
-      expect(session!.taskId).toBe('T1');
-      expect(session!.outcome).toBe('success');
-      expect(session!.summary).toBe('All done');
-      expect(session!.endedAt).toBeDefined();
+      service.register({
+        id: 'a1',
+        name: 'Agent 1',
+        capabilities: [{ name: 'code' }, { name: 'deploy' }],
+      });
+      service.register({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'code' }] });
+      service.register({ id: 'a3', name: 'Agent 3', capabilities: [{ name: 'research' }] });
 
-      const updated = service.getAgent(agent.id);
-      expect(updated!.activeSession).toBeUndefined();
+      const deployers = service.findByCapability('deploy');
+      expect(deployers).toHaveLength(1);
+      expect(deployers[0].name).toBe('Agent 1');
     });
 
-    it('should return null if no active session', () => {
-      const { agent } = service.register({ name: 'test', agentType: 'x', capabilities: ['code'] });
-      const session = service.endSession(agent.id);
-      expect(session).toBeNull();
-    });
+    it('should exclude offline agents', () => {
+      const service = getAgentRegistryService();
 
-    it('should return null for unknown agent', () => {
-      const session = service.endSession('nonexistent');
-      expect(session).toBeNull();
-    });
-  });
+      const a1 = service.register({
+        id: 'a1',
+        name: 'Agent 1',
+        capabilities: [{ name: 'deploy' }],
+      });
+      service.register({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'deploy' }] });
 
-  // ── Session History ──────────────────────────────────────────
+      service.heartbeat(a1.id, { status: 'offline' });
 
-  describe('getSessionHistory()', () => {
-    it('should return sessions in reverse chronological order', () => {
-      const { agent } = service.register({ name: 'test', agentType: 'x', capabilities: ['code'] });
-
-      for (let i = 1; i <= 3; i++) {
-        service.heartbeat(agent.id, { status: 'working', taskId: `T${i}`, taskTitle: `Task ${i}` });
-        service.heartbeat(agent.id, { status: 'idle' });
-      }
-
-      const history = service.getSessionHistory(agent.id);
-      expect(history).toHaveLength(3);
-      expect(history[0].taskId).toBe('T3');
-      expect(history[2].taskId).toBe('T1');
-    });
-
-    it('should respect limit parameter', () => {
-      const { agent } = service.register({ name: 'test', agentType: 'x', capabilities: ['code'] });
-
-      for (let i = 1; i <= 5; i++) {
-        service.heartbeat(agent.id, { status: 'working', taskId: `T${i}` });
-        service.heartbeat(agent.id, { status: 'idle' });
-      }
-
-      const history = service.getSessionHistory(agent.id, 2);
-      expect(history).toHaveLength(2);
-      expect(history[0].taskId).toBe('T5');
-      expect(history[1].taskId).toBe('T4');
-    });
-
-    it('should return empty array for unknown agent', () => {
-      const history = service.getSessionHistory('nonexistent');
-      expect(history).toEqual([]);
+      const deployers = service.findByCapability('deploy');
+      expect(deployers).toHaveLength(1);
+      expect(deployers[0].name).toBe('Agent 2');
     });
   });
 
-  // ── Unregister ───────────────────────────────────────────────
+  // ── Stats ────────────────────────────────────────────────────
 
-  describe('unregister()', () => {
+  describe('stats()', () => {
+    it('should return registry statistics', () => {
+      const service = getAgentRegistryService();
+
+      const a1 = service.register({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'code' }] });
+      const a2 = service.register({
+        id: 'a2',
+        name: 'Agent 2',
+        capabilities: [{ name: 'deploy' }],
+      });
+      service.register({ id: 'a3', name: 'Agent 3', capabilities: [{ name: 'research' }] });
+
+      service.heartbeat(a1.id, { status: 'busy' });
+      service.heartbeat(a2.id, { status: 'idle' });
+
+      const stats = service.stats();
+
+      expect(stats.total).toBe(3);
+      expect(stats.online).toBe(1); // a3
+      expect(stats.busy).toBe(1); // a1
+      expect(stats.idle).toBe(1); // a2
+      expect(stats.offline).toBe(0);
+      expect(stats.capabilities).toEqual(['code', 'deploy', 'research']);
+    });
+
+    it('should count offline agents', () => {
+      const service = getAgentRegistryService();
+
+      const a1 = service.register({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'code' }] });
+
+      service.heartbeat(a1.id, { status: 'offline' });
+
+      const stats = service.stats();
+      expect(stats.offline).toBe(1);
+      expect(stats.online).toBe(0);
+    });
+  });
+
+  // ── Deregister ───────────────────────────────────────────────
+
+  describe('deregister()', () => {
     it('should remove an agent', () => {
-      const { agent } = service.register({ name: 'test', agentType: 'x', capabilities: ['code'] });
-      const removed = service.unregister(agent.id);
+      const service = getAgentRegistryService();
+
+      const agent = service.register({
+        id: 'test',
+        name: 'Test Agent',
+        capabilities: [{ name: 'code' }],
+      });
+      const removed = service.deregister(agent.id);
+
       expect(removed).toBe(true);
-      expect(service.getAgent(agent.id)).toBeNull();
+      expect(service.get(agent.id)).toBeNull();
     });
 
     it('should return false for unknown agent', () => {
-      expect(service.unregister('nonexistent')).toBe(false);
-    });
-
-    it('should not remove session history', () => {
-      const { agent } = service.register({ name: 'test', agentType: 'x', capabilities: ['code'] });
-      service.heartbeat(agent.id, { status: 'working', taskId: 'T1' });
-      service.heartbeat(agent.id, { status: 'idle' });
-
-      service.unregister(agent.id);
-
-      const history = service.getSessionHistory(agent.id);
-      expect(history).toHaveLength(1);
+      const service = getAgentRegistryService();
+      expect(service.deregister('nonexistent')).toBe(false);
     });
   });
 });

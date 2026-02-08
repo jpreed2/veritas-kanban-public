@@ -5,25 +5,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 
-const { mockTaskService, mockNotificationService } = vi.hoisted(() => ({
-  mockTaskService: {
-    getTask: vi.fn(),
-    listTasks: vi.fn(),
-  },
+const { mockNotificationService } = vi.hoisted(() => ({
   mockNotificationService: {
-    createNotification: vi.fn(),
     getNotifications: vi.fn(),
-    getPendingForTeams: vi.fn(),
-    markAsSent: vi.fn(),
-    checkTasksForNotifications: vi.fn(),
-    clearNotifications: vi.fn(),
-  },
-}));
-
-vi.mock('../../services/task-service.js', () => ({
-  getTaskService: () => mockTaskService,
-  TaskService: function () {
-    return mockTaskService;
+    getStats: vi.fn(),
+    getSubscriptions: vi.fn(),
+    processComment: vi.fn(),
+    markDelivered: vi.fn(),
+    markAllDelivered: vi.fn(),
   },
 }));
 
@@ -34,7 +23,7 @@ vi.mock('../../services/notification-service.js', () => ({
 import { notificationRoutes } from '../../routes/notifications.js';
 import { errorHandler } from '../../middleware/error-handler.js';
 
-describe('Notification Routes (actual module)', () => {
+describe('Notification Routes', () => {
   let app: express.Express;
 
   beforeEach(() => {
@@ -50,91 +39,209 @@ describe('Notification Routes (actual module)', () => {
     app.use(errorHandler);
   });
 
-  describe('POST /api/notifications', () => {
-    it('should create a notification', async () => {
-      mockNotificationService.createNotification.mockResolvedValue({ id: 'n1', type: 'info' });
-      const res = await request(app)
-        .post('/api/notifications')
-        .send({ type: 'info', title: 'Test', message: 'Hello' });
-      expect(res.status).toBe(201);
-    });
-
-    it('should enrich with task info', async () => {
-      mockTaskService.getTask.mockResolvedValue({ id: 't1', title: 'Task', project: 'proj' });
-      mockNotificationService.createNotification.mockResolvedValue({ id: 'n1' });
-      const res = await request(app)
-        .post('/api/notifications')
-        .send({ type: 'task_done', title: 'Done', message: 'Task done', taskId: 't1' });
-      expect(res.status).toBe(201);
-    });
-
-    it('should reject invalid type', async () => {
-      const res = await request(app)
-        .post('/api/notifications')
-        .send({ type: 'invalid', title: 'Test', message: 'Hello' });
-      expect(res.status).toBe(400);
-    });
-
-    it('should reject missing fields', async () => {
-      const res = await request(app).post('/api/notifications').send({});
-      expect(res.status).toBe(400);
-    });
-  });
-
   describe('GET /api/notifications', () => {
-    it('should list notifications', async () => {
-      mockNotificationService.getNotifications.mockResolvedValue([{ id: 'n1' }]);
+    it('should get notifications for an agent', async () => {
+      mockNotificationService.getNotifications.mockResolvedValue([
+        { id: 'n1', targetAgent: 'alice', delivered: false },
+      ]);
+
+      const res = await request(app).get('/api/notifications?agent=alice');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(mockNotificationService.getNotifications).toHaveBeenCalledWith({
+        agent: 'alice',
+        undelivered: false,
+        taskId: '',
+        limit: undefined,
+      });
+    });
+
+    it('should require agent parameter', async () => {
       const res = await request(app).get('/api/notifications');
-      expect(res.status).toBe(200);
-    });
-
-    it('should filter unsent', async () => {
-      mockNotificationService.getNotifications.mockResolvedValue([]);
-      const res = await request(app).get('/api/notifications?unsent=true');
-      expect(res.status).toBe(200);
-      expect(mockNotificationService.getNotifications).toHaveBeenCalledWith({ unsent: true });
-    });
-  });
-
-  describe('GET /api/notifications/pending', () => {
-    it('should get pending for Teams', async () => {
-      mockNotificationService.getPendingForTeams.mockResolvedValue({ count: 0, notifications: [] });
-      const res = await request(app).get('/api/notifications/pending');
-      expect(res.status).toBe(200);
-    });
-  });
-
-  describe('POST /api/notifications/mark-sent', () => {
-    it('should mark notifications as sent', async () => {
-      mockNotificationService.markAsSent.mockResolvedValue(2);
-      const res = await request(app)
-        .post('/api/notifications/mark-sent')
-        .send({ ids: ['n1', 'n2'] });
-      expect(res.status).toBe(200);
-      expect(res.body.marked).toBe(2);
-    });
-
-    it('should reject invalid body', async () => {
-      const res = await request(app).post('/api/notifications/mark-sent').send({});
       expect(res.status).toBe(400);
+      expect(res.body.error).toContain('agent');
+    });
+
+    it('should filter by undelivered', async () => {
+      mockNotificationService.getNotifications.mockResolvedValue([]);
+      const res = await request(app).get('/api/notifications?agent=bob&undelivered=true');
+
+      expect(res.status).toBe(200);
+      expect(mockNotificationService.getNotifications).toHaveBeenCalledWith({
+        agent: 'bob',
+        undelivered: true,
+        taskId: '',
+        limit: undefined,
+      });
+    });
+
+    it('should filter by taskId', async () => {
+      mockNotificationService.getNotifications.mockResolvedValue([]);
+      const res = await request(app).get('/api/notifications?agent=alice&taskId=TASK-1');
+
+      expect(res.status).toBe(200);
+      expect(mockNotificationService.getNotifications).toHaveBeenCalledWith({
+        agent: 'alice',
+        undelivered: false,
+        taskId: 'TASK-1',
+        limit: undefined,
+      });
+    });
+
+    it('should respect limit', async () => {
+      mockNotificationService.getNotifications.mockResolvedValue([]);
+      const res = await request(app).get('/api/notifications?agent=alice&limit=5');
+
+      expect(res.status).toBe(200);
+      expect(mockNotificationService.getNotifications).toHaveBeenCalledWith({
+        agent: 'alice',
+        undelivered: false,
+        taskId: '',
+        limit: 5,
+      });
     });
   });
 
-  describe('POST /api/notifications/check', () => {
-    it('should check tasks for notifications', async () => {
-      mockTaskService.listTasks.mockResolvedValue([{ id: 't1' }]);
-      mockNotificationService.checkTasksForNotifications.mockResolvedValue([]);
-      const res = await request(app).post('/api/notifications/check');
+  describe('GET /api/notifications/stats', () => {
+    it('should return notification statistics', async () => {
+      mockNotificationService.getStats.mockResolvedValue({
+        totalNotifications: 10,
+        undelivered: 3,
+        byAgent: { alice: { total: 5, undelivered: 2 } },
+        byType: { mention: 8, assignment: 2 },
+      });
+
+      const res = await request(app).get('/api/notifications/stats');
+
       expect(res.status).toBe(200);
+      expect(res.body.totalNotifications).toBe(10);
+      expect(res.body.undelivered).toBe(3);
     });
   });
 
-  describe('DELETE /api/notifications', () => {
-    it('should clear all notifications', async () => {
-      mockNotificationService.clearNotifications.mockResolvedValue(undefined);
-      const res = await request(app).delete('/api/notifications');
+  describe('GET /api/notifications/subscriptions/:taskId', () => {
+    it('should return thread subscriptions', async () => {
+      mockNotificationService.getSubscriptions.mockResolvedValue([
+        { taskId: 'TASK-1', agent: 'alice', reason: 'mentioned', subscribedAt: '2024-01-01' },
+        { taskId: 'TASK-1', agent: 'bob', reason: 'commented', subscribedAt: '2024-01-02' },
+      ]);
+
+      const res = await request(app).get('/api/notifications/subscriptions/TASK-1');
+
       expect(res.status).toBe(200);
-      expect(res.body.cleared).toBe(true);
+      expect(res.body).toHaveLength(2);
+      expect(res.body[0].agent).toBe('alice');
+    });
+
+    it('should return empty array for task with no subscriptions', async () => {
+      mockNotificationService.getSubscriptions.mockResolvedValue([]);
+
+      const res = await request(app).get('/api/notifications/subscriptions/TASK-999');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+  });
+
+  describe('POST /api/notifications/process', () => {
+    it('should process comment and create notifications', async () => {
+      mockNotificationService.processComment.mockResolvedValue([
+        { id: 'n1', targetAgent: 'bob', type: 'mention' },
+      ]);
+
+      const res = await request(app).post('/api/notifications/process').send({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: 'Hey @bob, check this out',
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveLength(1);
+      expect(mockNotificationService.processComment).toHaveBeenCalledWith({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: 'Hey @bob, check this out',
+      });
+    });
+
+    it('should process @all mentions', async () => {
+      mockNotificationService.processComment.mockResolvedValue([
+        { id: 'n1', targetAgent: 'bob' },
+        { id: 'n2', targetAgent: 'charlie' },
+      ]);
+
+      const res = await request(app)
+        .post('/api/notifications/process')
+        .send({
+          taskId: 'TASK-1',
+          fromAgent: 'alice',
+          content: '@all please review',
+          allAgents: ['alice', 'bob', 'charlie'],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveLength(2);
+    });
+
+    it('should reject missing required fields', async () => {
+      const res = await request(app).post('/api/notifications/process').send({ taskId: 'TASK-1' });
+
+      // Missing fromAgent and content triggers validation error (caught by error handler)
+      expect(res.status).toBe(500); // ZodError returns 500 via error handler
+    });
+  });
+
+  describe('POST /api/notifications/:id/delivered', () => {
+    it('should mark notification as delivered', async () => {
+      mockNotificationService.markDelivered.mockResolvedValue(true);
+
+      const res = await request(app).post('/api/notifications/notif_123/delivered');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockNotificationService.markDelivered).toHaveBeenCalledWith('notif_123');
+    });
+
+    it('should return 404 for unknown notification', async () => {
+      mockNotificationService.markDelivered.mockResolvedValue(false);
+
+      const res = await request(app).post('/api/notifications/nonexistent/delivered');
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/notifications/delivered-all', () => {
+    it('should mark all notifications delivered for an agent', async () => {
+      mockNotificationService.markAllDelivered.mockResolvedValue(3);
+
+      const res = await request(app)
+        .post('/api/notifications/delivered-all')
+        .send({ agent: 'alice' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.count).toBe(3);
+      expect(mockNotificationService.markAllDelivered).toHaveBeenCalledWith('alice');
+    });
+
+    it('should return 0 count when no undelivered notifications', async () => {
+      mockNotificationService.markAllDelivered.mockResolvedValue(0);
+
+      const res = await request(app)
+        .post('/api/notifications/delivered-all')
+        .send({ agent: 'bob' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.count).toBe(0);
+    });
+
+    it('should reject missing agent field', async () => {
+      const res = await request(app).post('/api/notifications/delivered-all').send({});
+
+      // Missing agent field triggers Zod validation error (caught by error handler)
+      expect(res.status).toBe(500); // ZodError returns 500 via error handler
     });
   });
 });

@@ -1,7 +1,20 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+
+// Mock fs.mkdir to prevent actual directory creation in tests
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+  return {
+    ...actual,
+    mkdir: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 describe('paths: Docker DATA_DIR support', () => {
   const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   afterEach(() => {
     process.env = { ...originalEnv };

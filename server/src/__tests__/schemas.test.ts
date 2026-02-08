@@ -325,7 +325,7 @@ describe('Feature Settings Schema', () => {
 describe('Metrics Schemas', () => {
   it('should validate metrics query with defaults', () => {
     const result = MetricsQuerySchema.parse({});
-    expect(result.period).toBe('24h');
+    expect(result.period).toBe('7d'); // Default changed from 24h to 7d in v2.1.0
   });
 
   it('should validate metrics query with project', () => {

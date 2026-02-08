@@ -1,331 +1,377 @@
 /**
  * NotificationService Tests
- * Tests notification CRUD, formatting, and task-checking logic.
+ * Tests @mention parsing, notification creation, delivery tracking, and thread subscriptions.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import { NotificationService, type CreateNotificationInput, type Notification } from '../services/notification-service.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { parseMentions } from '../services/notification-service.js';
+
+// Mock fs and file-lock before importing the service
+vi.mock('node:fs/promises', () => ({
+  default: {
+    readFile: vi.fn().mockRejectedValue(new Error('ENOENT')),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+  },
+  readFile: vi.fn().mockRejectedValue(new Error('ENOENT')),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../services/file-lock.js', () => ({
+  withFileLock: vi.fn(async (_path: string, fn: () => Promise<void>) => await fn()),
+}));
+
+const { getNotificationService } = await import('../services/notification-service.js');
+import type { Notification, NotificationService } from '../services/notification-service.js';
 
 describe('NotificationService', () => {
-  let testDir: string;
-  let notifFile: string;
   let service: NotificationService;
 
-  beforeEach(async () => {
-    const suffix = Math.random().toString(36).substring(7);
-    testDir = path.join(os.tmpdir(), `veritas-test-notif-${suffix}`);
-    notifFile = path.join(testDir, 'notifications.json');
-    await fs.mkdir(testDir, { recursive: true });
-
-    service = new NotificationService({ notificationsFile: notifFile, maxNotifications: 10 });
+  beforeEach(() => {
+    service = getNotificationService();
+    // Reset internal state
+    (service as any).notifications = [];
+    (service as any).subscriptions = [];
+    (service as any).loaded = true;
   });
 
-  afterEach(async () => {
-    if (testDir) {
-      await fs.rm(testDir, { recursive: true, force: true }).catch(() => {});
-    }
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
-  describe('loadNotifications()', () => {
-    it('should return empty array when file does not exist', async () => {
-      const notifications = await service.loadNotifications();
-      expect(notifications).toEqual([]);
+  describe('parseMentions()', () => {
+    it('should extract single @mention', () => {
+      const mentions = parseMentions('Hey @alice, can you review this?');
+      expect(mentions).toEqual(['alice']);
     });
 
-    it('should load existing notifications from file', async () => {
-      const data: Notification[] = [
-        {
-          id: 'notif_1',
-          type: 'info',
-          title: 'Test',
-          message: 'Hello',
-          timestamp: '2024-01-01T00:00:00Z',
-          sent: false,
-        },
-      ];
-      await fs.writeFile(notifFile, JSON.stringify(data));
-
-      const result = await service.loadNotifications();
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('notif_1');
+    it('should extract multiple @mentions', () => {
+      const mentions = parseMentions('@alice @bob please check this');
+      expect(mentions).toEqual(['alice', 'bob']);
     });
 
-    it('should return empty array on corrupted file', async () => {
-      await fs.writeFile(notifFile, 'invalid json');
-      const result = await service.loadNotifications();
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe('saveNotifications()', () => {
-    it('should save notifications to file', async () => {
-      const data: Notification[] = [
-        {
-          id: 'notif_1',
-          type: 'info',
-          title: 'Saved',
-          message: 'Test',
-          timestamp: '2024-01-01T00:00:00Z',
-          sent: false,
-        },
-      ];
-      await service.saveNotifications(data);
-
-      const content = await fs.readFile(notifFile, 'utf-8');
-      const parsed = JSON.parse(content);
-      expect(parsed).toHaveLength(1);
-      expect(parsed[0].title).toBe('Saved');
+    it('should handle @all', () => {
+      const mentions = parseMentions('@all this is important');
+      expect(mentions).toEqual(['all']);
     });
 
-    it('should create directory if it does not exist', async () => {
-      const deepFile = path.join(testDir, 'deep', 'notifications.json');
-      const deepService = new NotificationService({ notificationsFile: deepFile });
-      await deepService.saveNotifications([]);
-      
-      const content = await fs.readFile(deepFile, 'utf-8');
-      expect(JSON.parse(content)).toEqual([]);
+    it('should deduplicate mentions', () => {
+      const mentions = parseMentions('@alice @bob @alice check this');
+      expect(mentions).toEqual(['alice', 'bob']);
+    });
+
+    it('should handle hyphenated and underscored names', () => {
+      const mentions = parseMentions('@claude-main @gpt_4 hello');
+      expect(mentions).toEqual(['claude-main', 'gpt_4']);
+    });
+
+    it('should return empty array when no mentions', () => {
+      const mentions = parseMentions('No mentions here');
+      expect(mentions).toEqual([]);
+    });
+
+    it('should lowercase mentions', () => {
+      const mentions = parseMentions('@Alice @BOB');
+      expect(mentions).toEqual(['alice', 'bob']);
     });
   });
 
-  describe('clearNotifications()', () => {
-    it('should clear all notifications', async () => {
-      await service.createNotification({ type: 'info', title: 'Test', message: 'Hi' });
-      await service.clearNotifications();
-      
-      const result = await service.loadNotifications();
-      expect(result).toEqual([]);
+  describe('processComment()', () => {
+    it('should create notifications for mentioned agents', async () => {
+      const created = await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: 'Hey @bob, can you review this?',
+      });
+
+      expect(created).toHaveLength(1);
+      expect(created[0].targetAgent).toBe('bob');
+      expect(created[0].fromAgent).toBe('alice');
+      expect(created[0].type).toBe('mention');
+      expect(created[0].delivered).toBe(false);
+    });
+
+    it('should not create self-mention notifications', async () => {
+      const created = await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: 'I am @alice working on this',
+      });
+
+      expect(created).toHaveLength(0);
+    });
+
+    it('should expand @all to all known agents', async () => {
+      const created = await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: '@all please review',
+        allAgents: ['alice', 'bob', 'charlie'],
+      });
+
+      expect(created).toHaveLength(2); // bob and charlie (alice excluded)
+      const targets = created.map((n) => n.targetAgent).sort();
+      expect(targets).toEqual(['bob', 'charlie']);
+    });
+
+    it('should subscribe commenter to thread', async () => {
+      await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: 'Working on this',
+      });
+
+      const subs = await service.getSubscriptions('TASK-1');
+      expect(subs).toHaveLength(1);
+      expect(subs[0].agent).toBe('alice');
+      expect(subs[0].reason).toBe('commented');
+    });
+
+    it('should subscribe mentioned agents to thread', async () => {
+      await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: 'Hey @bob, check this',
+      });
+
+      const subs = await service.getSubscriptions('TASK-1');
+      expect(subs).toHaveLength(2);
+      const agents = subs.map((s) => s.agent).sort();
+      expect(agents).toEqual(['alice', 'bob']);
+    });
+
+    it('should notify thread subscribers even without mention', async () => {
+      // Bob subscribes to thread
+      await service.subscribe('TASK-1', 'bob', 'manual');
+
+      // Alice comments without mentioning Bob
+      const created = await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: 'Making progress',
+      });
+
+      // Bob should still get notified as a subscriber
+      expect(created).toHaveLength(1);
+      expect(created[0].targetAgent).toBe('bob');
+      expect(created[0].type).toBe('reply'); // Not 'mention' since not explicitly mentioned
     });
   });
 
-  describe('createNotification()', () => {
-    it('should create a notification with generated id and timestamp', async () => {
-      const input: CreateNotificationInput = {
-        type: 'agent_complete',
-        title: 'Agent Done',
-        message: 'Work completed',
-        taskId: 'task_123',
-        taskTitle: 'My Task',
-        project: 'my-project',
-      };
+  describe('notifyAssignment()', () => {
+    it('should create assignment notifications', async () => {
+      await service.notifyAssignment('TASK-1', ['bob', 'charlie'], 'alice');
 
-      const notification = await service.createNotification(input);
-      expect(notification.id).toMatch(/^notif_/);
-      expect(notification.type).toBe('agent_complete');
-      expect(notification.title).toBe('Agent Done');
-      expect(notification.sent).toBe(false);
-      expect(notification.timestamp).toBeDefined();
-      expect(notification.taskId).toBe('task_123');
-      expect(notification.project).toBe('my-project');
+      const bobNotifs = await service.getNotifications({ agent: 'bob' });
+      expect(bobNotifs).toHaveLength(1);
+      expect(bobNotifs[0].type).toBe('assignment');
+      expect(bobNotifs[0].fromAgent).toBe('alice');
     });
 
-    it('should enforce maxNotifications limit', async () => {
-      for (let i = 0; i < 15; i++) {
-        await service.createNotification({ type: 'info', title: `Notif ${i}`, message: `Msg ${i}` });
-      }
+    it('should not notify the assigner', async () => {
+      await service.notifyAssignment('TASK-1', ['alice', 'bob'], 'alice');
 
-      const all = await service.loadNotifications();
-      expect(all.length).toBeLessThanOrEqual(10);
+      const aliceNotifs = await service.getNotifications({ agent: 'alice' });
+      expect(aliceNotifs).toHaveLength(0);
+
+      const bobNotifs = await service.getNotifications({ agent: 'bob' });
+      expect(bobNotifs).toHaveLength(1);
+    });
+
+    it('should auto-subscribe assigned agents', async () => {
+      await service.notifyAssignment('TASK-1', ['bob'], 'alice');
+
+      const subs = await service.getSubscriptions('TASK-1');
+      expect(subs).toHaveLength(1);
+      expect(subs[0].agent).toBe('bob');
+      expect(subs[0].reason).toBe('assigned');
     });
   });
 
   describe('getNotifications()', () => {
-    it('should return notifications in reverse order (most recent first)', async () => {
-      await service.createNotification({ type: 'info', title: 'First', message: 'A' });
-      await service.createNotification({ type: 'info', title: 'Second', message: 'B' });
-
-      const result = await service.getNotifications();
-      expect(result[0].title).toBe('Second');
-      expect(result[1].title).toBe('First');
+    beforeEach(async () => {
+      await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: '@bob check this',
+      });
+      await service.processComment({
+        taskId: 'TASK-2',
+        fromAgent: 'charlie',
+        content: '@bob another task',
+      });
     });
 
-    it('should filter unsent notifications', async () => {
-      const n1 = await service.createNotification({ type: 'info', title: 'Unsent', message: 'A' });
-      const n2 = await service.createNotification({ type: 'info', title: 'Will be sent', message: 'B' });
-      
-      // Mark one as sent
-      await service.markAsSent([n2.id]);
-
-      const unsent = await service.getNotifications({ unsent: true });
-      expect(unsent).toHaveLength(1);
-      expect(unsent[0].title).toBe('Unsent');
-    });
-  });
-
-  describe('markAsSent()', () => {
-    it('should mark specified notifications as sent', async () => {
-      const n1 = await service.createNotification({ type: 'info', title: 'A', message: 'A' });
-      const n2 = await service.createNotification({ type: 'info', title: 'B', message: 'B' });
-
-      const marked = await service.markAsSent([n1.id]);
-      expect(marked).toBe(1);
-
-      const all = await service.loadNotifications();
-      const sentOne = all.find(n => n.id === n1.id);
-      const unsentOne = all.find(n => n.id === n2.id);
-      expect(sentOne!.sent).toBe(true);
-      expect(unsentOne!.sent).toBe(false);
+    it('should get all notifications for an agent', async () => {
+      const notifs = await service.getNotifications({ agent: 'bob' });
+      expect(notifs).toHaveLength(2);
     });
 
-    it('should return count of marked notifications', async () => {
-      const n1 = await service.createNotification({ type: 'info', title: 'A', message: 'A' });
-      const n2 = await service.createNotification({ type: 'info', title: 'B', message: 'B' });
+    it('should filter by undelivered', async () => {
+      const allNotifs = await service.getNotifications({ agent: 'bob' });
+      await service.markDelivered(allNotifs[0].id);
 
-      const marked = await service.markAsSent([n1.id, n2.id]);
-      expect(marked).toBe(2);
+      const undelivered = await service.getNotifications({ agent: 'bob', undelivered: true });
+      expect(undelivered).toHaveLength(1);
+    });
+
+    it('should filter by taskId', async () => {
+      const notifs = await service.getNotifications({ agent: 'bob', taskId: 'TASK-1' });
+      expect(notifs).toHaveLength(1);
+      expect(notifs[0].taskId).toBe('TASK-1');
+    });
+
+    it('should respect limit', async () => {
+      const notifs = await service.getNotifications({ agent: 'bob', limit: 1 });
+      expect(notifs).toHaveLength(1);
+    });
+
+    it('should sort by newest first', async () => {
+      const notifs = await service.getNotifications({ agent: 'bob' });
+      const timestamps = notifs.map((n) => new Date(n.createdAt).getTime());
+      expect(timestamps[0]).toBeGreaterThanOrEqual(timestamps[1]);
     });
   });
 
-  describe('formatForTeams()', () => {
-    it('should format notification with icon and title', () => {
-      const notification: Notification = {
-        id: 'n1',
-        type: 'agent_complete',
-        title: 'Agent Done',
-        message: 'Work completed',
-        timestamp: '2024-01-01T00:00:00Z',
-        sent: false,
-      };
+  describe('markDelivered()', () => {
+    it('should mark a notification as delivered', async () => {
+      const created = await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: '@bob hello',
+      });
 
-      const formatted = service.formatForTeams(notification);
-      expect(formatted.text).toContain('✅');
-      expect(formatted.text).toContain('**Agent Done**');
-      expect(formatted.text).toContain('Work completed');
-      expect(formatted.type).toBe('agent_complete');
+      const success = await service.markDelivered(created[0].id);
+      expect(success).toBe(true);
+
+      const notifs = await service.getNotifications({ agent: 'bob' });
+      expect(notifs[0].delivered).toBe(true);
+      expect(notifs[0].deliveredAt).toBeDefined();
     });
 
-    it('should include task details when present', () => {
-      const notification: Notification = {
-        id: 'n1',
-        type: 'needs_review',
-        title: 'Review Required',
-        message: 'Please review',
-        taskId: 'task_12345678',
-        taskTitle: 'My Task',
-        project: 'veritas',
-        timestamp: '2024-01-01T00:00:00Z',
-        sent: false,
-      };
-
-      const formatted = service.formatForTeams(notification);
-      expect(formatted.text).toContain('📋 Task: My Task');
-      expect(formatted.text).toContain('#veritas');
-      expect(formatted.text).toContain('vk show');
-    });
-
-    it('should handle all notification types', () => {
-      const types = ['agent_complete', 'agent_failed', 'needs_review', 'task_done', 'high_priority', 'error', 'milestone', 'info'] as const;
-      
-      for (const type of types) {
-        const notification: Notification = {
-          id: 'n1',
-          type,
-          title: 'Test',
-          message: 'Msg',
-          timestamp: '2024-01-01T00:00:00Z',
-          sent: false,
-        };
-        const formatted = service.formatForTeams(notification);
-        expect(formatted.text.length).toBeGreaterThan(0);
-      }
+    it('should return false for unknown notification', async () => {
+      const success = await service.markDelivered('nonexistent');
+      expect(success).toBe(false);
     });
   });
 
-  describe('getPendingForTeams()', () => {
-    it('should return count and formatted messages for unsent notifications', async () => {
-      await service.createNotification({ type: 'info', title: 'Pending', message: 'Msg' });
+  describe('markAllDelivered()', () => {
+    it('should mark all notifications for an agent as delivered', async () => {
+      await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: '@bob first',
+      });
+      await service.processComment({
+        taskId: 'TASK-2',
+        fromAgent: 'alice',
+        content: '@bob second',
+      });
 
-      const result = await service.getPendingForTeams();
-      expect(result.count).toBe(1);
-      expect(result.messages).toHaveLength(1);
-      expect(result.messages[0].text).toContain('Pending');
+      const count = await service.markAllDelivered('bob');
+      expect(count).toBe(2);
+
+      const undelivered = await service.getNotifications({ agent: 'bob', undelivered: true });
+      expect(undelivered).toHaveLength(0);
     });
 
-    it('should return zero when no unsent notifications', async () => {
-      const n = await service.createNotification({ type: 'info', title: 'Sent', message: 'Msg' });
-      await service.markAsSent([n.id]);
-
-      const result = await service.getPendingForTeams();
-      expect(result.count).toBe(0);
-      expect(result.messages).toHaveLength(0);
+    it('should return 0 if no undelivered notifications', async () => {
+      const count = await service.markAllDelivered('bob');
+      expect(count).toBe(0);
     });
   });
 
-  describe('checkTasksForNotifications()', () => {
-    it('should create notifications for tasks needing review', async () => {
-      const tasks = [
-        {
-          id: 'task_1',
-          title: 'Review This',
-          status: 'blocked',
-          project: 'test',
-          attempt: { id: 'a1', agent: 'claude-code', status: 'complete' },
-        },
-      ] as any;
+  describe('createNotification()', () => {
+    it('should create a direct notification (backward compat)', async () => {
+      const notif = await service.createNotification({
+        type: 'error',
+        title: 'Build Failed',
+        message: 'The build failed on task ABC-123',
+        taskId: 'ABC-123',
+      });
 
-      const created = await service.checkTasksForNotifications(tasks);
-      expect(created).toHaveLength(1);
-      expect(created[0].type).toBe('needs_review');
-      expect(created[0].taskId).toBe('task_1');
+      expect(notif.id).toBeDefined();
+      expect(notif.targetAgent).toBe('system');
+      expect(notif.fromAgent).toBe('system');
+      expect(notif.content).toBe('The build failed on task ABC-123');
+      expect(notif.delivered).toBe(false);
+    });
+  });
+
+  describe('getStats()', () => {
+    beforeEach(async () => {
+      await service.processComment({
+        taskId: 'TASK-1',
+        fromAgent: 'alice',
+        content: '@bob @charlie check this',
+      });
+      await service.processComment({
+        taskId: 'TASK-2',
+        fromAgent: 'bob',
+        content: '@alice done',
+      });
     });
 
-    it('should create notifications for failed agent attempts', async () => {
-      const tasks = [
-        {
-          id: 'task_2',
-          title: 'Failed Task',
-          status: 'blocked',
-          attempt: { id: 'a1', agent: 'amp', status: 'failed' },
-        },
-      ] as any;
+    it('should return notification statistics', async () => {
+      const stats = await service.getStats();
 
-      const created = await service.checkTasksForNotifications(tasks);
-      expect(created).toHaveLength(1);
-      expect(created[0].type).toBe('agent_failed');
+      expect(stats.totalNotifications).toBe(3); // bob, charlie, alice
+      expect(stats.undelivered).toBe(3);
+      expect(stats.byAgent).toHaveProperty('bob');
+      expect(stats.byAgent).toHaveProperty('charlie');
+      expect(stats.byAgent).toHaveProperty('alice');
+      expect(stats.byType).toHaveProperty('mention');
     });
 
-    it('should not duplicate notifications within 24 hours', async () => {
-      const tasks = [
-        {
-          id: 'task_3',
-          title: 'Dedup Test',
-          status: 'blocked',
-          attempt: { id: 'a1', agent: 'amp', status: 'failed' },
-        },
-      ] as any;
+    it('should track delivered vs undelivered', async () => {
+      const bobNotifs = await service.getNotifications({ agent: 'bob' });
+      await service.markDelivered(bobNotifs[0].id);
 
-      // First check creates notification
-      await service.checkTasksForNotifications(tasks);
-      // Second check should not duplicate
-      const second = await service.checkTasksForNotifications(tasks);
-      expect(second).toHaveLength(0);
+      const stats = await service.getStats();
+      expect(stats.byAgent.bob.total).toBe(1);
+      expect(stats.byAgent.bob.undelivered).toBe(0);
+    });
+  });
+
+  describe('subscribe()', () => {
+    it('should subscribe an agent to a thread', async () => {
+      await service.subscribe('TASK-1', 'alice', 'manual');
+
+      const subs = await service.getSubscriptions('TASK-1');
+      expect(subs).toHaveLength(1);
+      expect(subs[0].agent).toBe('alice');
+      expect(subs[0].reason).toBe('manual');
     });
 
-    it('should skip tasks that don\'t need notifications', async () => {
-      const tasks = [
-        { id: 'task_4', title: 'Normal', status: 'todo' },
-        { id: 'task_5', title: 'In Progress', status: 'in-progress' },
-        { id: 'task_6', title: 'Done', status: 'done', attempt: { status: 'complete' } },
-      ] as any;
+    it('should not create duplicate subscriptions', async () => {
+      await service.subscribe('TASK-1', 'alice', 'manual');
+      await service.subscribe('TASK-1', 'alice', 'commented');
 
-      const created = await service.checkTasksForNotifications(tasks);
-      expect(created).toHaveLength(0);
+      const subs = await service.getSubscriptions('TASK-1');
+      expect(subs).toHaveLength(1);
     });
 
-    it('should skip tasks where veritas is the agent (for review notifications)', async () => {
-      const tasks = [
-        {
-          id: 'task_7',
-          title: 'Veritas Task',
-          status: 'blocked',
-          attempt: { id: 'a1', agent: 'veritas', status: 'complete' },
-        },
-      ] as any;
+    it('should lowercase agent names', async () => {
+      await service.subscribe('TASK-1', 'Alice', 'manual');
 
-      const created = await service.checkTasksForNotifications(tasks);
-      // veritas agent complete shouldn't trigger 'needs_review'
-      expect(created.filter(n => n.type === 'needs_review')).toHaveLength(0);
+      const subs = await service.getSubscriptions('TASK-1');
+      expect(subs[0].agent).toBe('alice');
+    });
+  });
+
+  describe('getSubscriptions()', () => {
+    it('should return subscriptions for a task', async () => {
+      await service.subscribe('TASK-1', 'alice', 'manual');
+      await service.subscribe('TASK-1', 'bob', 'mentioned');
+      await service.subscribe('TASK-2', 'charlie', 'assigned');
+
+      const subs = await service.getSubscriptions('TASK-1');
+      expect(subs).toHaveLength(2);
+      const agents = subs.map((s) => s.agent).sort();
+      expect(agents).toEqual(['alice', 'bob']);
+    });
+
+    it('should return empty array for task with no subscriptions', async () => {
+      const subs = await service.getSubscriptions('TASK-999');
+      expect(subs).toEqual([]);
     });
   });
 });

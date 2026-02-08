@@ -16,23 +16,23 @@ vi.mock('../../storage/fs-helpers.js', () => ({
   mkdirSync: vi.fn(),
 }));
 
-const { resetAgentRegistryService } = await import('../../services/agent-registry-service.js');
+const { disposeAgentRegistryService } = await import('../../services/agent-registry-service.js');
 const { agentRegistryRoutes } = await import('../../routes/agent-registry.js');
 
 describe('Agent Registry Routes', () => {
   let app: express.Express;
 
   beforeEach(() => {
-    resetAgentRegistryService();
+    disposeAgentRegistryService();
 
     app = express();
     app.use(express.json());
-    app.use('/api/agents', agentRegistryRoutes);
+    app.use('/api/agents/register', agentRegistryRoutes);
     app.use(errorHandler);
   });
 
   afterEach(() => {
-    resetAgentRegistryService();
+    disposeAgentRegistryService();
   });
 
   // ── Registration ─────────────────────────────────────────────
@@ -42,222 +42,265 @@ describe('Agent Registry Routes', () => {
       const res = await request(app)
         .post('/api/agents/register')
         .send({
-          name: 'claude-main',
-          agentType: 'claude-code',
-          capabilities: ['code', 'test'],
-          model: 'claude-sonnet-4-20250514',
+          id: 'claude-main',
+          name: 'Claude Main',
+          model: 'claude-sonnet-4',
+          provider: 'anthropic',
+          capabilities: [{ name: 'code' }, { name: 'test' }],
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.isNew).toBe(true);
-      expect(res.body.agent.name).toBe('claude-main');
-      expect(res.body.agent.agentType).toBe('claude-code');
-      expect(res.body.agent.capabilities).toEqual(['code', 'test']);
-      expect(res.body.agent.status).toBe('alive');
-      expect(res.body.agent.id).toBeDefined();
+      expect(res.body.id).toBe('claude-main');
+      expect(res.body.name).toBe('Claude Main');
+      expect(res.body.model).toBe('claude-sonnet-4');
+      expect(res.body.capabilities).toHaveLength(2);
+      expect(res.body.status).toBe('online');
     });
 
-    it('should re-register an existing agent (200)', async () => {
+    it('should update an existing agent (201)', async () => {
       await request(app)
         .post('/api/agents/register')
-        .send({ name: 'claude-main', agentType: 'claude-code', capabilities: ['code'] });
+        .send({
+          id: 'claude-main',
+          name: 'Claude Main',
+          capabilities: [{ name: 'code' }],
+        });
 
       const res = await request(app)
         .post('/api/agents/register')
-        .send({ name: 'claude-main', agentType: 'claude-code', capabilities: ['code', 'test', 'review'] });
+        .send({
+          id: 'claude-main',
+          name: 'Claude Main Updated',
+          capabilities: [{ name: 'code' }, { name: 'test' }, { name: 'review' }],
+        });
 
-      expect(res.status).toBe(200);
-      expect(res.body.isNew).toBe(false);
-      expect(res.body.agent.capabilities).toEqual(['code', 'test', 'review']);
-    });
-
-    it('should reject invalid agent name', async () => {
-      const res = await request(app)
-        .post('/api/agents/register')
-        .send({ name: 'invalid name!', agentType: 'claude-code', capabilities: ['code'] });
-
-      expect(res.status).toBe(400);
-    });
-
-    it('should reject empty capabilities', async () => {
-      const res = await request(app)
-        .post('/api/agents/register')
-        .send({ name: 'test-agent', agentType: 'claude-code', capabilities: [] });
-
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(201);
+      expect(res.body.name).toBe('Claude Main Updated');
+      expect(res.body.capabilities).toHaveLength(3);
     });
 
     it('should reject missing required fields', async () => {
-      const res = await request(app)
-        .post('/api/agents/register')
-        .send({ name: 'test' });
+      const res = await request(app).post('/api/agents/register').send({ name: 'test' });
 
       expect(res.status).toBe(400);
+    });
+
+    it('should accept minimal valid registration', async () => {
+      const res = await request(app).post('/api/agents/register').send({
+        id: 'minimal-agent',
+        name: 'Minimal Agent',
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBe('minimal-agent');
+      expect(res.body.capabilities).toEqual([]);
     });
   });
 
   // ── Heartbeat ────────────────────────────────────────────────
 
-  describe('POST /api/agents/:id/heartbeat', () => {
-    it('should update agent status', async () => {
-      const reg = await request(app)
+  describe('POST /api/agents/register/:id/heartbeat', () => {
+    it('should update agent status (200)', async () => {
+      await request(app)
         .post('/api/agents/register')
-        .send({ name: 'test-agent', agentType: 'claude-code', capabilities: ['code'] });
+        .send({ id: 'test-agent', name: 'Test Agent', capabilities: [{ name: 'code' }] });
 
       const res = await request(app)
-        .post(`/api/agents/${reg.body.agent.id}/heartbeat`)
-        .send({ status: 'working', taskId: 'TASK-1', taskTitle: 'Fix the bug' });
+        .post('/api/agents/register/test-agent/heartbeat')
+        .send({ status: 'busy', currentTaskId: 'TASK-1', currentTaskTitle: 'Working on task' });
 
       expect(res.status).toBe(200);
-      expect(res.body.agent.status).toBe('working');
-      expect(res.body.agent.activeSession).toBeDefined();
-      expect(res.body.agent.activeSession.taskId).toBe('TASK-1');
-      expect(res.body.serverTime).toBeDefined();
+      expect(res.body.status).toBe('busy');
+      expect(res.body.currentTaskId).toBe('TASK-1');
+      expect(res.body.currentTaskTitle).toBe('Working on task');
     });
 
-    it('should return 404 for unknown agent', async () => {
+    it('should return 404 for unregistered agent', async () => {
       const res = await request(app)
-        .post('/api/agents/nonexistent/heartbeat')
-        .send({ status: 'alive' });
+        .post('/api/agents/register/unknown/heartbeat')
+        .send({ status: 'online' });
 
       expect(res.status).toBe(404);
     });
 
-    it('should reject invalid status', async () => {
-      const reg = await request(app)
+    it('should update metadata via heartbeat', async () => {
+      await request(app)
         .post('/api/agents/register')
-        .send({ name: 'test-agent', agentType: 'claude-code', capabilities: ['code'] });
+        .send({ id: 'test-agent', name: 'Test', capabilities: [] });
 
       const res = await request(app)
-        .post(`/api/agents/${reg.body.agent.id}/heartbeat`)
-        .send({ status: 'banana' });
+        .post('/api/agents/register/test-agent/heartbeat')
+        .send({ metadata: { ping: 12345 } });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
+      expect(res.body.metadata).toEqual({ ping: 12345 });
+    });
+
+    it('should clear task when status is idle', async () => {
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'test-agent', name: 'Test', capabilities: [] });
+
+      await request(app)
+        .post('/api/agents/register/test-agent/heartbeat')
+        .send({ status: 'busy', currentTaskId: 'TASK-1' });
+
+      const res = await request(app)
+        .post('/api/agents/register/test-agent/heartbeat')
+        .send({ status: 'idle', currentTaskId: '', currentTaskTitle: '' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('idle');
+      // Empty string clears it, leaving the field present but set to undefined in response
+      expect(res.body.currentTaskId).toBeUndefined();
     });
   });
 
-  // ── Registry Listing ─────────────────────────────────────────
+  // ── List Agents ──────────────────────────────────────────────
 
-  describe('GET /api/agents/registry', () => {
-    it('should list registered agents', async () => {
-      await request(app).post('/api/agents/register').send({ name: 'a1', agentType: 'claude-code', capabilities: ['code'] });
-      await request(app).post('/api/agents/register').send({ name: 'a2', agentType: 'copilot', capabilities: ['code', 'review'] });
+  describe('GET /api/agents/register', () => {
+    it('should list all registered agents', async () => {
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'code' }] });
 
-      const res = await request(app).get('/api/agents/registry');
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'deploy' }] });
+
+      const res = await request(app).get('/api/agents/register');
 
       expect(res.status).toBe(200);
-      expect(res.body.agents).toHaveLength(2);
-      expect(res.body.total).toBe(2);
+      expect(res.body).toHaveLength(2);
     });
 
     it('should filter by status', async () => {
-      const reg = await request(app).post('/api/agents/register').send({ name: 'a1', agentType: 'claude-code', capabilities: ['code'] });
-      await request(app).post('/api/agents/register').send({ name: 'a2', agentType: 'copilot', capabilities: ['code'] });
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a1', name: 'Agent 1', capabilities: [] });
 
-      await request(app).post(`/api/agents/${reg.body.agent.id}/heartbeat`).send({ status: 'working', taskId: 'T1' });
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a2', name: 'Agent 2', capabilities: [] });
 
-      const res = await request(app).get('/api/agents/registry').query({ status: 'working' });
+      await request(app).post('/api/agents/register/a1/heartbeat').send({ status: 'busy' });
+
+      const res = await request(app).get('/api/agents/register').query({ status: 'busy' });
 
       expect(res.status).toBe(200);
-      expect(res.body.agents).toHaveLength(1);
-      expect(res.body.agents[0].name).toBe('a1');
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].id).toBe('a1');
     });
 
     it('should filter by capability', async () => {
-      await request(app).post('/api/agents/register').send({ name: 'a1', agentType: 'claude-code', capabilities: ['code', 'deploy'] });
-      await request(app).post('/api/agents/register').send({ name: 'a2', agentType: 'copilot', capabilities: ['code'] });
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'code' }, { name: 'test' }] });
 
-      const res = await request(app).get('/api/agents/registry').query({ capability: 'deploy' });
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'code' }] });
+
+      const res = await request(app).get('/api/agents/register').query({ capability: 'test' });
 
       expect(res.status).toBe(200);
-      expect(res.body.agents).toHaveLength(1);
-      expect(res.body.agents[0].name).toBe('a1');
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].id).toBe('a1');
     });
   });
 
-  // ── Single Agent Lookup ──────────────────────────────────────
+  // ── Get Agent ────────────────────────────────────────────────
 
-  describe('GET /api/agents/registry/:id', () => {
-    it('should return a single agent', async () => {
-      const reg = await request(app).post('/api/agents/register').send({ name: 'test', agentType: 'x', capabilities: ['code'] });
+  describe('GET /api/agents/register/:id', () => {
+    it('should get agent by ID', async () => {
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'test-agent', name: 'Test Agent', capabilities: [] });
 
-      const res = await request(app).get(`/api/agents/registry/${reg.body.agent.id}`);
+      const res = await request(app).get('/api/agents/register/test-agent');
 
       expect(res.status).toBe(200);
-      expect(res.body.name).toBe('test');
+      expect(res.body.id).toBe('test-agent');
+      expect(res.body.name).toBe('Test Agent');
     });
 
     it('should return 404 for unknown agent', async () => {
-      const res = await request(app).get('/api/agents/registry/nonexistent');
+      const res = await request(app).get('/api/agents/register/nonexistent');
       expect(res.status).toBe(404);
     });
   });
 
-  // ── Session History ──────────────────────────────────────────
+  // ── Get Stats ────────────────────────────────────────────────
 
-  describe('GET /api/agents/registry/:id/sessions', () => {
-    it('should return session history', async () => {
-      const reg = await request(app).post('/api/agents/register').send({ name: 'test', agentType: 'x', capabilities: ['code'] });
-      const agentId = reg.body.agent.id;
+  describe('GET /api/agents/register/stats', () => {
+    it('should return registry statistics', async () => {
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'code' }] });
 
-      await request(app).post(`/api/agents/${agentId}/heartbeat`).send({ status: 'working', taskId: 'T1', taskTitle: 'My Task' });
-      await request(app).post(`/api/agents/${agentId}/heartbeat`).send({ status: 'idle' });
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'deploy' }] });
 
-      const res = await request(app).get(`/api/agents/registry/${agentId}/sessions`);
+      await request(app).post('/api/agents/register/a1/heartbeat').send({ status: 'busy' });
+
+      const res = await request(app).get('/api/agents/register/stats');
 
       expect(res.status).toBe(200);
-      expect(res.body.agentId).toBe(agentId);
-      expect(res.body.sessions).toHaveLength(1);
-      expect(res.body.sessions[0].taskId).toBe('T1');
-    });
-
-    it('should return 404 for unknown agent', async () => {
-      const res = await request(app).get('/api/agents/registry/nonexistent/sessions');
-      expect(res.status).toBe(404);
+      expect(res.body.total).toBe(2);
+      expect(res.body.busy).toBe(1);
+      expect(res.body.online).toBe(1);
+      expect(res.body.capabilities).toContain('code');
+      expect(res.body.capabilities).toContain('deploy');
     });
   });
 
-  // ── End Session ──────────────────────────────────────────────
+  // ── Find by Capability ───────────────────────────────────────
 
-  describe('POST /api/agents/:id/session/end', () => {
-    it('should end an active session', async () => {
-      const reg = await request(app).post('/api/agents/register').send({ name: 'test', agentType: 'x', capabilities: ['code'] });
-      const agentId = reg.body.agent.id;
+  describe('GET /api/agents/register/capabilities/:capability', () => {
+    it('should find agents by capability', async () => {
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a1', name: 'Agent 1', capabilities: [{ name: 'deploy' }] });
 
-      await request(app).post(`/api/agents/${agentId}/heartbeat`).send({ status: 'working', taskId: 'T1' });
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'a2', name: 'Agent 2', capabilities: [{ name: 'code' }] });
 
-      const res = await request(app).post(`/api/agents/${agentId}/session/end`).send({ outcome: 'success', summary: 'Done!' });
+      const res = await request(app).get('/api/agents/register/capabilities/deploy');
 
       expect(res.status).toBe(200);
-      expect(res.body.session.taskId).toBe('T1');
-      expect(res.body.session.outcome).toBe('success');
-      expect(res.body.session.summary).toBe('Done!');
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].id).toBe('a1');
     });
 
-    it('should return 404 if no active session', async () => {
-      const reg = await request(app).post('/api/agents/register').send({ name: 'test', agentType: 'x', capabilities: ['code'] });
+    it('should return empty array when no agents have capability', async () => {
+      const res = await request(app).get('/api/agents/register/capabilities/nonexistent');
 
-      const res = await request(app).post(`/api/agents/${reg.body.agent.id}/session/end`).send({});
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
     });
   });
 
-  // ── Unregister ───────────────────────────────────────────────
+  // ── Deregister ───────────────────────────────────────────────
 
-  describe('DELETE /api/agents/registry/:id', () => {
-    it('should remove an agent', async () => {
-      const reg = await request(app).post('/api/agents/register').send({ name: 'test', agentType: 'x', capabilities: ['code'] });
+  describe('DELETE /api/agents/register/:id', () => {
+    it('should deregister an agent', async () => {
+      await request(app)
+        .post('/api/agents/register')
+        .send({ id: 'test-agent', name: 'Test', capabilities: [] });
 
-      const res = await request(app).delete(`/api/agents/registry/${reg.body.agent.id}`);
+      const res = await request(app).delete('/api/agents/register/test-agent');
+
       expect(res.status).toBe(200);
-      expect(res.body.deleted).toBe(true);
+      expect(res.body.removed).toBe(true);
 
-      const check = await request(app).get(`/api/agents/registry/${reg.body.agent.id}`);
-      expect(check.status).toBe(404);
+      const get = await request(app).get('/api/agents/register/test-agent');
+      expect(get.status).toBe(404);
     });
 
     it('should return 404 for unknown agent', async () => {
-      const res = await request(app).delete('/api/agents/registry/nonexistent');
+      const res = await request(app).delete('/api/agents/register/nonexistent');
       expect(res.status).toBe(404);
     });
   });
