@@ -389,8 +389,8 @@ export class TaskService {
 
       // Resolve dependencies from the in-memory map
       const resolvedDependencies = task.blockedBy
-        .map((depId) => taskMap.get(depId))
-        .filter((t): t is Task => t !== undefined);
+        .map((depId: string) => taskMap.get(depId))
+        .filter((t: Task | undefined): t is Task => t !== undefined);
 
       return {
         ...task,
@@ -698,7 +698,7 @@ export class TaskService {
     );
 
     // Filter out null values from failed parses
-    const tasks = results.filter((t): t is Task => t !== null);
+    const tasks = results.filter((t: Task | null): t is Task => t !== null);
 
     // Sort by updated date, newest first
     return tasks.sort(
@@ -875,21 +875,33 @@ export class TaskService {
     }
 
     const now = new Date();
-    const entries = task.timeTracking.entries.map((entry) => {
-      if (entry.id === task.timeTracking!.activeEntryId) {
-        const startTime = new Date(entry.startTime);
-        const duration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
-        return {
-          ...entry,
-          endTime: now.toISOString(),
-          duration,
-        };
+    const entries = task.timeTracking.entries.map(
+      (entry: {
+        id: string;
+        startTime: string;
+        endTime?: string;
+        duration?: number;
+        description?: string;
+        manual?: boolean;
+      }) => {
+        if (entry.id === task.timeTracking!.activeEntryId) {
+          const startTime = new Date(entry.startTime);
+          const duration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+          return {
+            ...entry,
+            endTime: now.toISOString(),
+            duration,
+          };
+        }
+        return entry;
       }
-      return entry;
-    });
+    );
 
     // Recalculate total
-    const totalSeconds = entries.reduce((sum, e) => sum + (e.duration || 0), 0);
+    const totalSeconds = entries.reduce(
+      (sum: number, e: { duration?: number }) => sum + (e.duration || 0),
+      0
+    );
 
     const timeTracking: TimeTracking = {
       entries,
@@ -943,8 +955,14 @@ export class TaskService {
       throw new NotFoundError('Task not found');
     }
 
-    const entries = (task.timeTracking?.entries || []).filter((e) => e.id !== entryId);
-    const totalSeconds = entries.reduce((sum, e) => sum + (e.duration || 0), 0);
+    const entries = (task.timeTracking?.entries || []).filter(
+      (e: { id: string; startTime: string; endTime?: string; duration?: number }) =>
+        e.id !== entryId
+    );
+    const totalSeconds = entries.reduce(
+      (sum: number, e: { duration?: number }) => sum + (e.duration || 0),
+      0
+    );
 
     // If we deleted the active entry, stop the timer
     const wasActive = task.timeTracking?.activeEntryId === entryId;

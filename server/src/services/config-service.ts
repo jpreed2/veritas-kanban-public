@@ -260,7 +260,12 @@ export class ConfigService {
     const config = await this.getConfig();
 
     // Validate repo doesn't already exist
-    if (config.repos.some((r) => r.name === repo.name)) {
+    if (
+      config.repos.some(
+        (r: { name: string; path: string; defaultBranch: string; devServer?: any }) =>
+          r.name === repo.name
+      )
+    ) {
       throw new Error(`Repo "${repo.name}" already exists`);
     }
 
@@ -274,7 +279,9 @@ export class ConfigService {
 
   async updateRepo(name: string, updates: Partial<RepoConfig>): Promise<AppConfig> {
     const config = await this.getConfig();
-    const index = config.repos.findIndex((r) => r.name === name);
+    const index = config.repos.findIndex(
+      (r: { name: string; path: string; defaultBranch: string; devServer?: any }) => r.name === name
+    );
 
     if (index === -1) {
       throw new Error(`Repo "${name}" not found`);
@@ -292,7 +299,9 @@ export class ConfigService {
 
   async removeRepo(name: string): Promise<AppConfig> {
     const config = await this.getConfig();
-    const index = config.repos.findIndex((r) => r.name === name);
+    const index = config.repos.findIndex(
+      (r: { name: string; path: string; defaultBranch: string; devServer?: any }) => r.name === name
+    );
 
     if (index === -1) {
       throw new Error(`Repo "${name}" not found`);
@@ -336,7 +345,10 @@ export class ConfigService {
 
   async getRepoBranches(repoName: string): Promise<string[]> {
     const config = await this.getConfig();
-    const repo = config.repos.find((r) => r.name === repoName);
+    const repo = config.repos.find(
+      (r: { name: string; path: string; defaultBranch: string; devServer?: any }) =>
+        r.name === repoName
+    );
 
     if (!repo) {
       throw new Error(`Repo "${repoName}" not found`);

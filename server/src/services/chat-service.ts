@@ -147,13 +147,22 @@ export class ChatService {
     });
 
     // Serialize messages as markdown blocks
-    const messageBlocks = session.messages.map((msg) => {
-      const meta = [`**${msg.id}**`, msg.role, msg.timestamp, msg.agent || '', msg.model || '']
-        .filter(Boolean)
-        .join(' | ');
+    const messageBlocks = session.messages.map(
+      (msg: {
+        id: string;
+        role: string;
+        content: string;
+        timestamp: string;
+        agent?: string;
+        model?: string;
+      }) => {
+        const meta = [`**${msg.id}**`, msg.role, msg.timestamp, msg.agent || '', msg.model || '']
+          .filter(Boolean)
+          .join(' | ');
 
-      return `${meta}\n\n${msg.content}`;
-    });
+        return `${meta}\n\n${msg.content}`;
+      }
+    );
 
     const markdown = messageBlocks.join('\n\n---\n\n');
 

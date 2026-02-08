@@ -257,11 +257,22 @@ export class AnalyticsService {
     const entries = task.timeTracking?.entries || [];
 
     // Filter entries within window
-    const relevantEntries = entries.filter((e) => {
-      const startMs = new Date(e.startTime).getTime();
-      const endMs = e.endTime ? new Date(e.endTime).getTime() : startMs + (e.duration || 0) * 1000;
-      return startMs < windowEnd.getTime() && endMs > windowStart.getTime();
-    });
+    const relevantEntries = entries.filter(
+      (e: {
+        id: string;
+        startTime: string;
+        endTime?: string;
+        duration?: number;
+        description?: string;
+        manual?: boolean;
+      }) => {
+        const startMs = new Date(e.startTime).getTime();
+        const endMs = e.endTime
+          ? new Date(e.endTime).getTime()
+          : startMs + (e.duration || 0) * 1000;
+        return startMs < windowEnd.getTime() && endMs > windowStart.getTime();
+      }
+    );
 
     let startTime: string | undefined;
     let endTime: string | undefined;
@@ -288,13 +299,22 @@ export class AnalyticsService {
       startTime,
       endTime,
       durationSeconds: totalDurationSeconds,
-      timeEntries: relevantEntries.map((e) => ({
-        id: e.id,
-        startTime: e.startTime,
-        endTime: e.endTime,
-        duration: e.duration,
-        description: e.description,
-      })),
+      timeEntries: relevantEntries.map(
+        (e: {
+          id: string;
+          startTime: string;
+          endTime?: string;
+          duration?: number;
+          description?: string;
+          manual?: boolean;
+        }) => ({
+          id: e.id,
+          startTime: e.startTime,
+          endTime: e.endTime,
+          duration: e.duration,
+          description: e.description,
+        })
+      ),
     };
   }
 

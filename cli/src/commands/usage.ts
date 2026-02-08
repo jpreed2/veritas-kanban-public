@@ -110,13 +110,32 @@ async function displayAgentUsage(agentName: string, period: string, json: boolea
     const durationMetrics = await api<DurationMetrics>(`/api/metrics/duration?period=${period}`);
 
     // Find agent in breakdown
-    const agentTokens = tokenMetrics.byAgent.find((a) => a.agent === agentName);
-    const agentDuration = durationMetrics.byAgent.find((a) => a.agent === agentName);
+    const agentTokens = tokenMetrics.byAgent.find(
+      (a: {
+        agent: string;
+        totalTokens: number;
+        inputTokens: number;
+        outputTokens: number;
+        cacheTokens: number;
+      }) => a.agent === agentName
+    );
+    const agentDuration = durationMetrics.byAgent.find(
+      (a: { agent: string; runs: number; avgMs: number; p50Ms: number; p95Ms: number }) =>
+        a.agent === agentName
+    );
 
     if (!agentTokens && !agentDuration) {
       console.error(chalk.red(`No data found for agent: ${agentName}`));
       console.log(chalk.dim('\nAvailable agents:'));
-      tokenMetrics.byAgent.forEach((a) => console.log(chalk.dim(`  - ${a.agent}`)));
+      tokenMetrics.byAgent.forEach(
+        (a: {
+          agent: string;
+          totalTokens: number;
+          inputTokens: number;
+          outputTokens: number;
+          cacheTokens: number;
+        }) => console.log(chalk.dim(`  - ${a.agent}`))
+      );
       process.exit(1);
     }
 
@@ -185,7 +204,7 @@ async function displayTaskUsage(taskId: string, period: string, json: boolean): 
     const taskCostMetrics = await api<TaskCostMetrics>(`/api/metrics/task-cost?period=${period}`);
 
     // Find this specific task
-    const taskCost = taskCostMetrics.tasks.find((t) => t.taskId === task.id);
+    const taskCost = taskCostMetrics.tasks.find((t: TaskCostEntry) => t.taskId === task.id);
 
     if (!taskCost) {
       console.error(chalk.red(`No usage data found for task: ${task.title}`));

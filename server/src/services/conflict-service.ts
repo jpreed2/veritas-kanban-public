@@ -57,7 +57,10 @@ export class ConflictService {
     }
 
     const config = await this.configService.getConfig();
-    const repoConfig = config.repos.find((r) => r.name === task.git!.repo);
+    const repoConfig = config.repos.find(
+      (r: { name: string; path: string; defaultBranch: string; devServer?: any }) =>
+        r.name === task.git!.repo
+    );
     if (!repoConfig) {
       throw new Error(`Repository "${task.git.repo}" not found`);
     }

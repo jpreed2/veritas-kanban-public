@@ -55,7 +55,10 @@ export class AgentRoutingService {
 
       if (this.matchesRule(task, rule.match)) {
         // Verify the agent is actually configured and enabled
-        const agentConfig = config.agents.find((a) => a.type === rule.agent);
+        const agentConfig = config.agents.find(
+          (a: { type: string; name: string; command: string; args: string[]; enabled: boolean }) =>
+            a.type === rule.agent
+        );
         if (!agentConfig?.enabled) {
           log.warn(`Rule "${rule.name}" matched but agent "${rule.agent}" is disabled — skipping`);
           continue;
@@ -107,7 +110,10 @@ export class AgentRoutingService {
       if (!rule.fallback) continue;
       if (!this.matchesRule(task, rule.match)) continue;
 
-      const fallbackConfig = config.agents.find((a) => a.type === rule.fallback);
+      const fallbackConfig = config.agents.find(
+        (a: { type: string; name: string; command: string; args: string[]; enabled: boolean }) =>
+          a.type === rule.fallback
+      );
       if (!fallbackConfig?.enabled) {
         log.warn(`Fallback agent "${rule.fallback}" for rule "${rule.name}" is disabled`);
         continue;
@@ -124,7 +130,10 @@ export class AgentRoutingService {
     // No specific fallback found — try default if it's different from failed
     const defaultAgent = routing.defaultAgent || config.defaultAgent;
     if (defaultAgent !== failedAgent) {
-      const defaultConfig = config.agents.find((a) => a.type === defaultAgent);
+      const defaultConfig = config.agents.find(
+        (a: { type: string; name: string; command: string; args: string[]; enabled: boolean }) =>
+          a.type === defaultAgent
+      );
       if (defaultConfig?.enabled) {
         return {
           agent: defaultAgent,
@@ -150,7 +159,9 @@ export class AgentRoutingService {
    */
   async updateRoutingConfig(routing: AgentRoutingConfig): Promise<AgentRoutingConfig> {
     // Validate rule IDs are unique
-    const ids = routing.rules.map((r) => r.id);
+    const ids = routing.rules.map(
+      (r: { id: string; name: string; enabled: boolean; agent: string; match: any }) => r.id
+    );
     const uniqueIds = new Set(ids);
     if (ids.length !== uniqueIds.size) {
       throw new Error('Routing rule IDs must be unique');

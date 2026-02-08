@@ -121,7 +121,7 @@ export class BacklogRepository {
     );
 
     // Filter out null values from failed parses
-    const tasks = results.filter((t): t is Task => t !== null);
+    const tasks = results.filter((t: Task | null): t is Task => t !== null);
 
     // Sort by updated date, newest first
     return tasks.sort(

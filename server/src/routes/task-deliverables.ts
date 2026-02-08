@@ -99,7 +99,16 @@ router.patch(
 
     const deliverables = task.deliverables || [];
     const deliverableIndex = deliverables.findIndex(
-      (d) => d.id === (req.params.deliverableId as string)
+      (d: {
+        id: string;
+        title: string;
+        type: string;
+        status: string;
+        created: string;
+        path?: string;
+        agent?: string;
+        description?: string;
+      }) => d.id === (req.params.deliverableId as string)
     );
     if (deliverableIndex === -1) {
       throw new NotFoundError('Deliverable not found');
@@ -140,12 +149,34 @@ router.delete(
     }
 
     const deliverables = task.deliverables || [];
-    const filtered = deliverables.filter((d) => d.id !== (req.params.deliverableId as string));
+    const filtered = deliverables.filter(
+      (d: {
+        id: string;
+        title: string;
+        type: string;
+        status: string;
+        created: string;
+        path?: string;
+        agent?: string;
+        description?: string;
+      }) => d.id !== (req.params.deliverableId as string)
+    );
     if (filtered.length === deliverables.length) {
       throw new NotFoundError('Deliverable not found');
     }
 
-    const removed = deliverables.find((d) => d.id === (req.params.deliverableId as string));
+    const removed = deliverables.find(
+      (d: {
+        id: string;
+        title: string;
+        type: string;
+        status: string;
+        created: string;
+        path?: string;
+        agent?: string;
+        description?: string;
+      }) => d.id === (req.params.deliverableId as string)
+    );
     const updatedTask = await taskService.updateTask(req.params.id as string, {
       deliverables: filtered,
     });

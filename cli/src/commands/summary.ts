@@ -27,15 +27,16 @@ export function registerSummaryCommands(program: Command): void {
         console.log(`  Blocked:     ${summary.byStatus.blocked}`);
         console.log(`  Done:        ${summary.byStatus.done}`);
 
-        const projects = Object.entries(summary.byProject);
+        const projects = Object.entries(summary.byProject) as [
+          string,
+          { total: number; done: number; inProgress: number },
+        ][];
         if (projects.length > 0) {
           console.log(chalk.dim('\nProjects:'));
-          projects.forEach(
-            ([name, stats]: [string, { total: number; done: number; inProgress: number }]) => {
-              const percent = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
-              console.log(`  ${name}: ${stats.done}/${stats.total} (${percent}%)`);
-            }
-          );
+          projects.forEach(([name, stats]) => {
+            const percent = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+            console.log(`  ${name}: ${stats.done}/${stats.total} (${percent}%)`);
+          });
         }
 
         if (summary.highPriority.length > 0) {

@@ -71,7 +71,10 @@ router.patch(
     }
 
     const subtasks = task.subtasks || [];
-    const subtaskIndex = subtasks.findIndex((s) => s.id === (req.params.subtaskId as string));
+    const subtaskIndex = subtasks.findIndex(
+      (s: { id: string; title: string; completed: boolean; created: string }) =>
+        s.id === (req.params.subtaskId as string)
+    );
     if (subtaskIndex === -1) {
       throw new NotFoundError('Subtask not found');
     }
@@ -80,7 +83,12 @@ router.patch(
 
     // Check if we should auto-complete the parent task
     let taskUpdates: any = { subtasks };
-    if (task.autoCompleteOnSubtasks && subtasks.every((s) => s.completed)) {
+    if (
+      task.autoCompleteOnSubtasks &&
+      subtasks.every(
+        (s: { id: string; title: string; completed: boolean; created: string }) => s.completed
+      )
+    ) {
       taskUpdates.status = 'done';
     }
 
@@ -99,7 +107,10 @@ router.delete(
       throw new NotFoundError('Task not found');
     }
 
-    const subtasks = (task.subtasks || []).filter((s) => s.id !== (req.params.subtaskId as string));
+    const subtasks = (task.subtasks || []).filter(
+      (s: { id: string; title: string; completed: boolean; created: string }) =>
+        s.id !== (req.params.subtaskId as string)
+    );
     const updatedTask = await taskService.updateTask(req.params.id as string, { subtasks });
 
     res.json(updatedTask);

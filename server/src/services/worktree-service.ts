@@ -106,7 +106,10 @@ export class WorktreeService {
 
   private async getRepoGit(repoName: string): Promise<{ git: SimpleGit; repoPath: string }> {
     const config = await this.configService.getConfig();
-    const repo = config.repos.find((r) => r.name === repoName);
+    const repo = config.repos.find(
+      (r: { name: string; path: string; defaultBranch: string; devServer?: any }) =>
+        r.name === repoName
+    );
 
     if (!repo) {
       throw new Error(`Repository "${repoName}" not found in config`);

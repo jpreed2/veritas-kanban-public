@@ -81,7 +81,8 @@ export class ChangesService {
       for (const task of allTasks) {
         if (task.comments && task.comments.length > 0) {
           const recentComments = task.comments.filter(
-            (comment) => new Date(comment.timestamp).getTime() >= sinceDate.getTime()
+            (comment: { id: string; author: string; text: string; timestamp: string }) =>
+              new Date(comment.timestamp).getTime() >= sinceDate.getTime()
           );
 
           for (const comment of recentComments) {
@@ -120,7 +121,7 @@ export class ChangesService {
 
     // Calculate total changes
     response.summary.totalChanges = Object.values(response.summary.breakdown).reduce(
-      (sum, count) => sum + count,
+      (sum: number, count: number) => sum + count,
       0
     );
 

@@ -96,7 +96,10 @@ router.patch(
     }
 
     const comments = task.comments || [];
-    const commentIndex = comments.findIndex((c) => c.id === (req.params.commentId as string));
+    const commentIndex = comments.findIndex(
+      (c: { id: string; author: string; text: string; timestamp: string }) =>
+        c.id === (req.params.commentId as string)
+    );
     if (commentIndex === -1) {
       throw new NotFoundError('Comment not found');
     }
@@ -122,7 +125,10 @@ router.delete(
     }
 
     const comments = task.comments || [];
-    const filtered = comments.filter((c) => c.id !== (req.params.commentId as string));
+    const filtered = comments.filter(
+      (c: { id: string; author: string; text: string; timestamp: string }) =>
+        c.id !== (req.params.commentId as string)
+    );
     if (filtered.length === comments.length) {
       throw new NotFoundError('Comment not found');
     }

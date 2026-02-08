@@ -28,7 +28,7 @@ export function registerTaskCommands(program: Command): void {
           filtered = filtered.filter((t: Task) => t.type === options.type);
         }
         if (options.project) {
-          filtered = filtered.filter((t) => t.project === options.project);
+          filtered = filtered.filter((t: Task) => t.project === options.project);
         }
 
         if (options.json) {
@@ -36,7 +36,7 @@ export function registerTaskCommands(program: Command): void {
         } else if (filtered.length === 0) {
           console.log(chalk.dim('No tasks found'));
         } else {
-          filtered.forEach((task) => console.log(formatTask(task, options.verbose)));
+          filtered.forEach((task: Task) => console.log(formatTask(task, options.verbose)));
         }
       } catch (err) {
         console.error(chalk.red(`Error: ${(err as Error).message}`));

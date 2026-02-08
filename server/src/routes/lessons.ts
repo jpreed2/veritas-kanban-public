@@ -64,7 +64,7 @@ router.get('/', async (req, res, next) => {
       tasksWithLessons = tasksWithLessons.filter((t) => {
         const taskTags = t.lessonTags || [];
         return tags.every((filterTag) =>
-          taskTags.some((tt) => tt.toLowerCase() === String(filterTag).toLowerCase())
+          taskTags.some((tt: string) => tt.toLowerCase() === String(filterTag).toLowerCase())
         );
       });
     }
@@ -76,7 +76,7 @@ router.get('/', async (req, res, next) => {
         (t) =>
           t.lessonsLearned.toLowerCase().includes(searchLower) ||
           t.title.toLowerCase().includes(searchLower) ||
-          (t.lessonTags || []).some((tag) => tag.toLowerCase().includes(searchLower))
+          (t.lessonTags || []).some((tag: string) => tag.toLowerCase().includes(searchLower))
       );
     }
 

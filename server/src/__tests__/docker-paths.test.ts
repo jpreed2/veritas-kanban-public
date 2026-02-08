@@ -1,26 +1,31 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
-// Mock fs.mkdir to prevent actual directory creation in tests
-vi.mock('node:fs/promises', async () => {
-  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
-  return {
-    ...actual,
-    mkdir: vi.fn().mockResolvedValue(undefined),
-  };
-});
+// Mock node:fs/promises completely to prevent ANY filesystem operations
+vi.mock('node:fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  readFile: vi.fn().mockResolvedValue(''),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  readdir: vi.fn().mockResolvedValue([]),
+  stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+  access: vi.fn().mockResolvedValue(undefined),
+}));
 
-// Mock fs.existsSync to prevent filesystem reads in tests
-// Return true for pnpm-workspace.yaml in /app directory to simulate Docker environment
-vi.mock('node:fs', async () => {
-  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
-  return {
-    ...actual,
+// Mock node:fs to prevent filesystem reads
+vi.mock('node:fs', () => {
+  const mockFs = {
     existsSync: vi.fn((path: string) => {
       if (typeof path === 'string' && path.includes('pnpm-workspace.yaml')) {
         return path === '/app/pnpm-workspace.yaml';
       }
       return false;
     }),
+    readFileSync: vi.fn(() => ''),
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+  };
+  return {
+    ...mockFs,
+    default: mockFs, // Provide default export
   };
 });
 
@@ -29,6 +34,8 @@ describe('paths: Docker DATA_DIR support', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Set DATA_DIR before any imports to avoid the root === '/' check
+    process.env.DATA_DIR = '/app/data';
   });
 
   afterEach(() => {
@@ -37,11 +44,10 @@ describe('paths: Docker DATA_DIR support', () => {
   });
 
   it('uses DATA_DIR as storage root for tasks and runtime state', async () => {
-    process.env.DATA_DIR = '/app/data';
-
     vi.spyOn(process, 'cwd').mockReturnValue('/app/server');
 
-    const paths = await import('../utils/paths.js');
+    // Force re-import to pick up mocked environment
+    const paths = await import('../utils/paths.js?t=' + Date.now());
 
     expect(paths.getTasksActiveDir()).toBe('/app/data/tasks/active');
     expect(paths.getTasksArchiveDir()).toBe('/app/data/tasks/archive');
@@ -49,11 +55,10 @@ describe('paths: Docker DATA_DIR support', () => {
   });
 
   it('TaskService defaults to DATA_DIR-backed task directories when set', async () => {
-    process.env.DATA_DIR = '/app/data';
-
     vi.spyOn(process, 'cwd').mockReturnValue('/app/server');
 
-    const { TaskService } = await import('../services/task-service.js');
+    // Force re-import
+    const { TaskService } = await import('../services/task-service.js?t=' + Date.now());
     const svc = new TaskService();
 
     // Private fields — ok for regression test

@@ -72,7 +72,10 @@ router.patch(
     }
 
     const verificationSteps = task.verificationSteps || [];
-    const stepIndex = verificationSteps.findIndex((s) => s.id === (req.params.stepId as string));
+    const stepIndex = verificationSteps.findIndex(
+      (s: { id: string; description: string; checked: boolean; checkedAt?: string }) =>
+        s.id === (req.params.stepId as string)
+    );
     if (stepIndex === -1) {
       throw new NotFoundError('Verification step not found');
     }
@@ -105,7 +108,8 @@ router.delete(
     }
 
     const verificationSteps = (task.verificationSteps || []).filter(
-      (s) => s.id !== (req.params.stepId as string)
+      (s: { id: string; description: string; checked: boolean; checkedAt?: string }) =>
+        s.id !== (req.params.stepId as string)
     );
     const updatedTask = await taskService.updateTask(req.params.id as string, {
       verificationSteps,

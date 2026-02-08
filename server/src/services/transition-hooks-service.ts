@@ -196,7 +196,10 @@ function checkGate(gate: TransitionGate, task: Task): GateCheckResult {
       if (!task.verificationSteps || task.verificationSteps.length === 0) {
         passed = true; // No verification steps = nothing to check
       } else {
-        passed = task.verificationSteps.every((step) => step.checked);
+        passed = task.verificationSteps.every(
+          (step: { id: string; description: string; checked: boolean; checkedAt?: string }) =>
+            step.checked
+        );
         if (!passed) message = gate.errorMessage || 'All verification steps must be checked';
       }
       break;
@@ -216,7 +219,9 @@ function checkGate(gate: TransitionGate, task: Task): GateCheckResult {
       if (!task.subtasks || task.subtasks.length === 0) {
         passed = true; // No subtasks = nothing to check
       } else {
-        passed = task.subtasks.every((st) => st.completed);
+        passed = task.subtasks.every(
+          (st: { id: string; title: string; completed: boolean; created: string }) => st.completed
+        );
         if (!passed) message = gate.errorMessage || 'All subtasks must be completed';
       }
       break;
