@@ -49,6 +49,7 @@ export function useCreateBacklogTask() {
     mutationFn: (input: CreateTaskInput) => backlogApi.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backlog'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -85,6 +86,7 @@ export function useDeleteBacklogTask() {
     mutationFn: (id: string) => backlogApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backlog'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -101,6 +103,7 @@ export function usePromoteTask() {
       // Invalidate both backlog and active tasks
       queryClient.invalidateQueries({ queryKey: ['backlog'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -116,6 +119,7 @@ export function useBulkPromote() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backlog'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -131,6 +135,49 @@ export function useDemoteTask() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backlog'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
+    },
+  });
+}
+
+/**
+ * Bulk demote active tasks to backlog
+ */
+export function useBulkDemote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ids: string[]) => backlogApi.bulkDemote(ids),
+    onMutate: async (ids: string[]) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+
+      // Snapshot previous value
+      const previous = queryClient.getQueryData<Task[]>(['tasks']);
+
+      // Optimistically remove tasks from board
+      if (previous) {
+        queryClient.setQueryData<Task[]>(
+          ['tasks'],
+          previous.filter((t) => !ids.includes(t.id))
+        );
+      }
+
+      return { previous };
+    },
+    onError: (_err, _ids, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(['tasks'], context.previous);
+      }
+    },
+    onSettled: () => {
+      // Single batch of cache invalidations (not per-task)
+      queryClient.invalidateQueries({ queryKey: ['backlog'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }

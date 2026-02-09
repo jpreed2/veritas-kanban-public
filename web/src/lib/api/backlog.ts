@@ -97,4 +97,16 @@ export const backlogApi = {
     });
     return handleResponse<Task>(response);
   },
+
+  bulkDemote: async (
+    ids: string[]
+  ): Promise<{ demoted: string[]; count: number; failed: string[] }> => {
+    const response = await fetch(`${API_BASE}/backlog/bulk-demote`, {
+      credentials: 'include',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    return handleResponse(response);
+  },
 };

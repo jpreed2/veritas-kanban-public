@@ -5,6 +5,29 @@ All notable changes to Veritas Kanban are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.4] - 2026-02-09
+
+### Fixed
+
+- **Status Counter Accuracy** (#104) — Sidebar task counts now use a dedicated `GET /api/tasks/counts` endpoint that returns total counts by status, independent of time-range filters applied to the board view
+  - **New:** `server/src/routes/tasks.ts` — `/api/tasks/counts` endpoint returns `{ todo, in_progress, review, done, blocked, cancelled }`
+  - **New:** `web/src/hooks/useTaskCounts.ts` — dedicated React hook for sidebar counts
+  - **Updated:** `BoardSidebar.tsx` — uses `useTaskCounts()` instead of deriving from filtered task list
+  - Cache invalidation wired to task mutations so counts stay in sync
+
+- **Bulk Operation Timeouts** (#105) — Bulk archive, status update, and backlog demote operations now use single API calls instead of N individual requests
+  - **New:** `POST /api/tasks/bulk-update` — update status for multiple tasks in one call
+  - **New:** `POST /api/tasks/bulk-archive-by-ids` — archive multiple tasks by ID array
+  - **New:** `POST /api/backlog/bulk-demote` — demote multiple tasks to backlog in one call
+  - All bulk endpoints validate array size (max 100) to prevent abuse
+  - Operations run in parallel via `Promise.allSettled()` (~26× faster for large batches)
+  - **Updated:** `BulkActionsBar.tsx` — rewired to use bulk endpoints instead of sequential loops
+  - **Updated:** `useTasks.ts`, `useBacklog.ts` — new mutation hooks for bulk operations
+
+### Changed
+
+- **Squad Chat Documentation** (#106) — Updated `SQUAD_CHAT_IMPLEMENTATION.md` to clarify that the `model` field is a structural JSON field in the API, not a text instruction
+
 ## [2.1.3] - 2026-02-07
 
 ### Fixed

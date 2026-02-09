@@ -82,6 +82,7 @@ export function useCreateTask() {
     // Always refetch to sync with server
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -120,6 +121,7 @@ export function useUpdateTask() {
       // Without this, sidebar counts can lag behind the actual board state.
       if (input.status) {
         queryClient.invalidateQueries({ queryKey: ['metrics'] });
+        queryClient.invalidateQueries({ queryKey: ['task-counts'] });
       }
     },
     // NOTE: No general onSettled invalidation here. The onSuccess handler already
@@ -139,6 +141,7 @@ export function useDeleteTask() {
     mutationFn: (id: string) => api.tasks.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -159,7 +162,7 @@ export function useArchiveTask() {
       if (previous) {
         queryClient.setQueryData<Task[]>(
           ['tasks'],
-          previous.filter((t) => t.id !== id),
+          previous.filter((t) => t.id !== id)
         );
       }
 
@@ -177,6 +180,7 @@ export function useArchiveTask() {
       queryClient.invalidateQueries({ queryKey: ['tasks', 'archived'] });
       queryClient.invalidateQueries({ queryKey: ['metrics'] });
       queryClient.invalidateQueries({ queryKey: ['activity'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -189,6 +193,90 @@ export function useBulkArchive() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', 'archived'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
+    },
+  });
+}
+
+export function useBulkUpdate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      ids,
+      status,
+    }: {
+      ids: string[];
+      status: 'todo' | 'in-progress' | 'blocked' | 'done';
+    }) => api.tasks.bulkUpdate(ids, status),
+    onMutate: async ({ ids, status }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+
+      // Snapshot previous value
+      const previous = queryClient.getQueryData<Task[]>(['tasks']);
+
+      // Optimistically update tasks
+      if (previous) {
+        queryClient.setQueryData<Task[]>(
+          ['tasks'],
+          previous.map((t) => (ids.includes(t.id) ? { ...t, status } : t))
+        );
+      }
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(['tasks'], context.previous);
+      }
+    },
+    onSettled: () => {
+      // Single batch of cache invalidations (not per-task)
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['activity'] });
+    },
+  });
+}
+
+export function useBulkArchiveByIds() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ids: string[]) => api.tasks.bulkArchiveByIds(ids),
+    onMutate: async (ids: string[]) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+
+      // Snapshot previous value
+      const previous = queryClient.getQueryData<Task[]>(['tasks']);
+
+      // Optimistically remove tasks from board
+      if (previous) {
+        queryClient.setQueryData<Task[]>(
+          ['tasks'],
+          previous.filter((t) => !ids.includes(t.id))
+        );
+      }
+
+      return { previous };
+    },
+    onError: (_err, _ids, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(['tasks'], context.previous);
+      }
+    },
+    onSettled: () => {
+      // Single batch of cache invalidations (not per-task)
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'archived'] });
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }
@@ -201,6 +289,7 @@ export function useRestoreTask() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', 'archived'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }
@@ -420,6 +509,7 @@ export function useArchiveSprint() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', 'archived'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', 'archive-suggestions'] });
+      queryClient.invalidateQueries({ queryKey: ['task-counts'] });
     },
   });
 }

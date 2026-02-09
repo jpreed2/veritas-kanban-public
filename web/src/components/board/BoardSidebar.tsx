@@ -10,8 +10,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRealtimeAgentStatus } from '@/hooks/useAgentStatus';
 import { api, Activity } from '@/lib/api';
-import { useMetrics } from '@/hooks/useMetrics';
-import { useBacklogCount } from '@/hooks/useBacklog';
+import { useTaskCounts } from '@/hooks/useTaskCounts';
 import { useView } from '@/contexts/ViewContext';
 import {
   Clock,
@@ -376,10 +375,7 @@ interface BoardSidebarProps {
 
 export function BoardSidebar({ onTaskClick }: BoardSidebarProps) {
   const { setView } = useView();
-  const { data: metrics } = useMetrics('24h');
-  const { data: backlogCount = 0 } = useBacklogCount();
-
-  const byStatus = metrics?.tasks.byStatus;
+  const { data: counts } = useTaskCounts(); // Use new counts endpoint for sidebar counters
 
   return (
     <div className="flex flex-col gap-4">
@@ -389,33 +385,37 @@ export function BoardSidebar({ onTaskClick }: BoardSidebarProps) {
           Tasks
         </h3>
         <div className="grid grid-cols-2 gap-2">
-          <Counter label="Backlog" value={backlogCount} icon={<Inbox className="h-3.5 w-3.5" />} />
+          <Counter
+            label="Backlog"
+            value={counts?.backlog || 0}
+            icon={<Inbox className="h-3.5 w-3.5" />}
+          />
           <Counter
             label="To Do"
-            value={byStatus?.todo || 0}
+            value={counts?.todo || 0}
             icon={<ListTodo className="h-3.5 w-3.5" />}
           />
           <Counter
             label="In Progress"
-            value={byStatus?.['in-progress'] || 0}
+            value={counts?.['in-progress'] || 0}
             icon={<Play className="h-3.5 w-3.5" />}
             color="text-blue-500"
           />
           <Counter
             label="Blocked"
-            value={byStatus?.blocked || 0}
+            value={counts?.blocked || 0}
             icon={<Ban className="h-3.5 w-3.5" />}
             color="text-red-500"
           />
           <Counter
             label="Done"
-            value={byStatus?.done || 0}
+            value={counts?.done || 0}
             icon={<CheckCircle className="h-3.5 w-3.5" />}
             color="text-green-500"
           />
           <Counter
             label="Archived"
-            value={metrics?.tasks.archived || 0}
+            value={counts?.archived || 0}
             icon={<Archive className="h-3.5 w-3.5" />}
           />
         </div>

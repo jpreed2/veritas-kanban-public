@@ -50,7 +50,10 @@ const updateBacklogTaskSchema = z.object({
 });
 
 const bulkPromoteSchema = z.object({
-  ids: z.array(z.string()).min(1, 'At least one task ID is required'),
+  ids: z
+    .array(z.string())
+    .min(1, 'At least one task ID is required')
+    .max(100, 'Maximum 100 tasks per bulk operation'),
 });
 
 // GET /api/backlog - List backlog tasks
@@ -234,6 +237,66 @@ router.post(
     });
 
     res.json({ success: true, data: result });
+  })
+);
+
+const bulkDemoteSchema = z.object({
+  ids: z
+    .array(z.string())
+    .min(1, 'At least one task ID is required')
+    .max(100, 'Maximum 100 tasks per bulk operation'),
+});
+
+// POST /api/backlog/bulk-demote - Bulk demote tasks to backlog
+router.post(
+  '/bulk-demote',
+  asyncHandler(async (req, res) => {
+    let input;
+    try {
+      input = bulkDemoteSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new ValidationError('Validation failed', error.errors);
+      }
+      throw error;
+    }
+
+    const demoted: string[] = [];
+    const failed: string[] = [];
+
+    // Demote tasks in parallel for better performance
+    const results = await Promise.allSettled(
+      input.ids.map(async (id) => {
+        await backlogService.demoteToBacklog(id);
+        return { id, success: true };
+      })
+    );
+
+    // Collect results
+    results.forEach((result, index) => {
+      const id = input.ids[index];
+      if (result.status === 'fulfilled' && result.value.success) {
+        demoted.push(id);
+      } else {
+        failed.push(id);
+      }
+    });
+
+    // Broadcast changes for successfully demoted tasks
+    for (const id of demoted) {
+      broadcastTaskChange('deleted', id);
+    }
+
+    // Audit log
+    const authReq = req as AuthenticatedRequest;
+    await auditLog({
+      action: 'backlog.bulk_demote',
+      actor: authReq.auth?.keyName || 'unknown',
+      resource: 'bulk',
+      details: { demoted: demoted.length, failed: failed.length },
+    });
+
+    res.json({ success: true, data: { demoted, count: demoted.length, failed } });
   })
 );
 

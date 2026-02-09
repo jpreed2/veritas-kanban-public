@@ -190,10 +190,10 @@ The existing chat system provided:
 **API testing:**
 
 ```bash
-# Send a message
+# Send a message (model field is recommended — displays in UI next to agent name)
 curl -X POST http://localhost:3001/api/chat/squad \
   -H 'Content-Type: application/json' \
-  -d '{"agent":"VERITAS","message":"Test message","tags":["test"]}'
+  -d '{"agent":"VERITAS","message":"Test message","model":"claude-opus-4-6","tags":["test"]}'
 
 # Get messages
 curl http://localhost:3001/api/chat/squad

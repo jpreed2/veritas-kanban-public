@@ -263,6 +263,31 @@ export const tasksApi = {
     });
     return handleResponse<void>(response);
   },
+
+  bulkUpdate: async (
+    ids: string[],
+    status: 'todo' | 'in-progress' | 'blocked' | 'done'
+  ): Promise<{ updated: string[]; count: number; failed: string[] }> => {
+    const response = await fetch(`${API_BASE}/tasks/bulk-update`, {
+      credentials: 'include',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, status }),
+    });
+    return handleResponse(response);
+  },
+
+  bulkArchiveByIds: async (
+    ids: string[]
+  ): Promise<{ archived: string[]; count: number; failed: string[] }> => {
+    const response = await fetch(`${API_BASE}/tasks/bulk-archive-by-ids`, {
+      credentials: 'include',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    return handleResponse(response);
+  },
 };
 
 // Types

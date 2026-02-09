@@ -14,8 +14,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useBulkActions } from '@/hooks/useBulkActions';
-import { useUpdateTask, useDeleteTask, useArchiveTask } from '@/hooks/useTasks';
-import { useDemoteTask } from '@/hooks/useBacklog';
+import { useDeleteTask, useBulkUpdate, useBulkArchiveByIds } from '@/hooks/useTasks';
+import { useBulkDemote } from '@/hooks/useBacklog';
 import { cn } from '@/lib/utils';
 import type { Task, TaskStatus } from '@veritas-kanban/shared';
 
@@ -55,10 +55,10 @@ export function BulkActionsBar({ tasks }: BulkActionsBarProps) {
     useBulkActions();
   const { toast } = useToast();
 
-  const updateTask = useUpdateTask();
+  const bulkUpdate = useBulkUpdate();
   const deleteTask = useDeleteTask();
-  const archiveTask = useArchiveTask();
-  const demoteTask = useDemoteTask();
+  const bulkArchiveByIds = useBulkArchiveByIds();
+  const bulkDemote = useBulkDemote();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -112,13 +112,35 @@ export function BulkActionsBar({ tasks }: BulkActionsBarProps) {
     if (!moveTarget) return;
     setIsProcessing(true);
     try {
-      await Promise.all(
-        Array.from(selectedIds).map((id) =>
-          updateTask.mutateAsync({ id, input: { status: moveTarget } })
-        )
-      );
+      const ids = Array.from(selectedIds);
+      // Type assertion since BulkActionsBar only allows the 4 valid statuses
+      const result = await bulkUpdate.mutateAsync({
+        ids,
+        status: moveTarget as 'todo' | 'in-progress' | 'blocked' | 'done',
+      });
+
+      if (result.failed.length > 0) {
+        toast({
+          variant: 'default',
+          title: 'Partial Success',
+          description: `Moved ${result.updated.length} of ${ids.length} tasks. ${result.failed.length} failed.`,
+        });
+      } else {
+        toast({
+          variant: 'default',
+          title: 'Success',
+          description: `Moved ${result.updated.length} task${result.updated.length !== 1 ? 's' : ''}.`,
+        });
+      }
+
       clearSelection();
       setMoveTarget(null);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Move Failed',
+        description: 'Failed to move selected tasks.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -127,43 +149,37 @@ export function BulkActionsBar({ tasks }: BulkActionsBarProps) {
   const handleArchiveSelected = async () => {
     setIsProcessing(true);
     const taskIds = Array.from(selectedIds);
-    let successful = 0;
-    let failed = 0;
 
     try {
-      // Archive each task individually to track success/failure
-      for (const id of taskIds) {
-        try {
-          await archiveTask.mutateAsync(id);
-          successful++;
-        } catch (error) {
-          failed++;
-          console.error(`Failed to archive task ${id}:`, error);
-        }
-      }
+      const result = await bulkArchiveByIds.mutateAsync(taskIds);
 
-      // Show appropriate feedback
-      if (failed > 0 && successful > 0) {
+      if (result.failed.length > 0 && result.archived.length > 0) {
         toast({
           variant: 'default',
           title: 'Partial Archive',
-          description: `Archived ${successful} of ${taskIds.length} tasks. ${failed} failed.`,
+          description: `Archived ${result.archived.length} of ${taskIds.length} tasks. ${result.failed.length} failed.`,
         });
-      } else if (failed > 0) {
+      } else if (result.failed.length > 0) {
         toast({
           variant: 'destructive',
           title: 'Archive Failed',
           description: `Failed to archive all ${taskIds.length} selected tasks.`,
         });
-      } else if (successful > 0) {
+      } else {
         toast({
           variant: 'default',
           title: 'Success',
-          description: `Archived ${successful} task${successful !== 1 ? 's' : ''}.`,
+          description: `Archived ${result.archived.length} task${result.archived.length !== 1 ? 's' : ''}.`,
         });
       }
 
       clearSelection();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Archive Failed',
+        description: 'Failed to archive selected tasks.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -171,9 +187,38 @@ export function BulkActionsBar({ tasks }: BulkActionsBarProps) {
 
   const handleMoveToBacklog = async () => {
     setIsProcessing(true);
+    const taskIds = Array.from(selectedIds);
+
     try {
-      await Promise.all(Array.from(selectedIds).map((id) => demoteTask.mutateAsync(id)));
+      const result = await bulkDemote.mutateAsync(taskIds);
+
+      if (result.failed.length > 0 && result.demoted.length > 0) {
+        toast({
+          variant: 'default',
+          title: 'Partial Success',
+          description: `Moved ${result.demoted.length} of ${taskIds.length} tasks to backlog. ${result.failed.length} failed.`,
+        });
+      } else if (result.failed.length > 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Move Failed',
+          description: `Failed to move all ${taskIds.length} selected tasks.`,
+        });
+      } else {
+        toast({
+          variant: 'default',
+          title: 'Success',
+          description: `Moved ${result.demoted.length} task${result.demoted.length !== 1 ? 's' : ''} to backlog.`,
+        });
+      }
+
       clearSelection();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Move Failed',
+        description: 'Failed to move selected tasks to backlog.',
+      });
     } finally {
       setIsProcessing(false);
     }

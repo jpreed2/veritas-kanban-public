@@ -337,6 +337,78 @@ router.get(
   })
 );
 
+/**
+ * @openapi
+ * /api/tasks/counts:
+ *   get:
+ *     summary: Get task counts by status
+ *     description: >
+ *       Returns total task counts for each status (backlog, todo, in-progress, blocked, done)
+ *       and archived count. NO time filtering — counts ALL tasks across entire history.
+ *       Optimized for sidebar display.
+ *     tags: [Tasks]
+ *     responses:
+ *       200:
+ *         description: Task counts by status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 backlog:
+ *                   type: number
+ *                   description: Number of tasks in backlog
+ *                 todo:
+ *                   type: number
+ *                   description: Number of tasks in todo status
+ *                 in-progress:
+ *                   type: number
+ *                   description: Number of tasks in in-progress status
+ *                 blocked:
+ *                   type: number
+ *                   description: Number of tasks in blocked status
+ *                 done:
+ *                   type: number
+ *                   description: Number of tasks in done status
+ *                 archived:
+ *                   type: number
+ *                   description: Number of archived tasks
+ */
+router.get(
+  '/counts',
+  asyncHandler(async (_req, res) => {
+    const { getBacklogService } = await import('../services/backlog-service.js');
+    const backlogService = getBacklogService();
+
+    // Get all active tasks and count by status
+    const tasks = await taskService.listTasks();
+    const counts = {
+      backlog: 0,
+      todo: 0,
+      'in-progress': 0,
+      blocked: 0,
+      done: 0,
+      archived: 0,
+    };
+
+    // Count active tasks by status
+    for (const task of tasks) {
+      if (task.status in counts) {
+        counts[task.status as keyof typeof counts]++;
+      }
+    }
+
+    // Get backlog count
+    counts.backlog = await backlogService.getBacklogCount();
+
+    // Get archived count
+    const archived = await taskService.listArchivedTasks();
+    counts.archived = archived.length;
+
+    res.json(counts);
+  })
+);
+
 // POST /api/tasks/reorder - Reorder tasks within a column
 router.post(
   '/reorder',
@@ -859,6 +931,153 @@ router.post(
     });
 
     res.json({ success: true, data: task });
+  })
+);
+
+// === Bulk Operations ===
+
+const bulkUpdateSchema = z.object({
+  ids: z
+    .array(z.string())
+    .min(1, 'At least one task ID is required')
+    .max(100, 'Maximum 100 tasks per bulk operation'),
+  status: z.enum(['todo', 'in-progress', 'blocked', 'done']),
+});
+
+const bulkArchiveSchema = z.object({
+  ids: z
+    .array(z.string())
+    .min(1, 'At least one task ID is required')
+    .max(100, 'Maximum 100 tasks per bulk operation'),
+});
+
+// POST /api/tasks/bulk-update - Bulk update task status
+router.post(
+  '/bulk-update',
+  asyncHandler(async (req, res) => {
+    let input: { ids: string[]; status: 'todo' | 'in-progress' | 'blocked' | 'done' };
+    try {
+      input = bulkUpdateSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new ValidationError('Validation failed', error.errors);
+      }
+      throw error;
+    }
+
+    const updated: string[] = [];
+    const failed: string[] = [];
+
+    // Update tasks in parallel for better performance
+    const results = await Promise.allSettled(
+      input.ids.map(async (id) => {
+        const task = await taskService.updateTask(id, { status: input.status });
+        if (task) {
+          // Log activity for status change
+          await activityService.logActivity(
+            'status_changed',
+            task.id,
+            task.title,
+            {
+              from: task.status,
+              status: input.status,
+            },
+            task.agent
+          );
+          return { id, success: true };
+        }
+        return { id, success: false };
+      })
+    );
+
+    // Collect results
+    results.forEach((result, index) => {
+      const id = input.ids[index];
+      if (result.status === 'fulfilled' && result.value.success) {
+        updated.push(id);
+      } else {
+        failed.push(id);
+      }
+    });
+
+    // Single broadcast for all changes
+    broadcastTaskChange('updated');
+
+    // Audit log
+    const authReq = req as AuthenticatedRequest;
+    await auditLog({
+      action: 'tasks.bulk_update',
+      actor: authReq.auth?.keyName || 'unknown',
+      resource: 'bulk',
+      details: { updated: updated.length, failed: failed.length, status: input.status },
+    });
+
+    res.json({ updated, count: updated.length, failed });
+  })
+);
+
+// POST /api/tasks/bulk-archive-by-ids - Bulk archive tasks by ID list
+router.post(
+  '/bulk-archive-by-ids',
+  asyncHandler(async (req, res) => {
+    let input: { ids: string[] };
+    try {
+      input = bulkArchiveSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new ValidationError('Validation failed', error.errors);
+      }
+      throw error;
+    }
+
+    const archived: string[] = [];
+    const failed: string[] = [];
+
+    // Archive tasks in parallel for better performance
+    const results = await Promise.allSettled(
+      input.ids.map(async (id) => {
+        const task = await taskService.getTask(id);
+        if (task) {
+          const success = await taskService.archiveTask(id);
+          if (success) {
+            // Log activity
+            await activityService.logActivity(
+              'task_archived',
+              task.id,
+              task.title,
+              undefined,
+              task.agent
+            );
+            return { id, success: true, task };
+          }
+        }
+        return { id, success: false };
+      })
+    );
+
+    // Collect results
+    results.forEach((result, index) => {
+      const id = input.ids[index];
+      if (result.status === 'fulfilled' && result.value.success) {
+        archived.push(id);
+      } else {
+        failed.push(id);
+      }
+    });
+
+    // Single broadcast for all changes
+    broadcastTaskChange('deleted');
+
+    // Audit log
+    const authReq = req as AuthenticatedRequest;
+    await auditLog({
+      action: 'tasks.bulk_archive',
+      actor: authReq.auth?.keyName || 'unknown',
+      resource: 'bulk',
+      details: { archived: archived.length, failed: failed.length },
+    });
+
+    res.json({ archived, count: archived.length, failed });
   })
 );
 
