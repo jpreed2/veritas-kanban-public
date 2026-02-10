@@ -68,33 +68,58 @@ const DEFAULT_POLICIES: ToolPolicy[] = [
 export class ToolPolicyService {
   private policiesDir: string;
   private cache: Map<string, ToolPolicy> = new Map();
+  private initPromise: Promise<void> | null = null;
 
   constructor(policiesDir?: string) {
     this.policiesDir = policiesDir || getToolPoliciesDir();
-    this.ensureDirectories();
-    this.loadDefaults();
-  }
-
-  private async ensureDirectories(): Promise<void> {
-    await fs.mkdir(this.policiesDir, { recursive: true });
+    // Load defaults into cache synchronously (no I/O)
+    this.loadDefaultsToCache();
+    // Initialize async operations (directory creation, file persistence)
+    this.initPromise = this.initializeAsync();
   }
 
   /**
-   * Load default policies into cache
+   * Load default policies into in-memory cache (synchronous)
+   * This ensures policies are immediately available even before disk persistence completes
    */
-  private async loadDefaults(): Promise<void> {
+  private loadDefaultsToCache(): void {
     for (const policy of DEFAULT_POLICIES) {
       this.cache.set(policy.role, policy);
+    }
+  }
+
+  /**
+   * Initialize async operations: create directories and persist default policies
+   * Called from constructor, completes in background
+   */
+  private async initializeAsync(): Promise<void> {
+    try {
+      // Ensure directory exists
+      await fs.mkdir(this.policiesDir, { recursive: true });
 
       // Persist default policies to disk if they don't exist
-      const filePath = path.join(this.policiesDir, `${policy.role}.json`);
-      try {
-        await fs.access(filePath);
-      } catch {
-        // File doesn't exist, create it
-        await fs.writeFile(filePath, JSON.stringify(policy, null, 2), 'utf-8');
-        log.info({ role: policy.role }, 'Created default policy file');
+      for (const policy of DEFAULT_POLICIES) {
+        const filePath = path.join(this.policiesDir, `${policy.role}.json`);
+        try {
+          await fs.access(filePath);
+        } catch {
+          // File doesn't exist, create it
+          await fs.writeFile(filePath, JSON.stringify(policy, null, 2), 'utf-8');
+          log.info({ role: policy.role }, 'Created default policy file');
+        }
       }
+    } catch (err) {
+      log.error({ err }, 'Failed to initialize tool policy service directories');
+      throw err;
+    }
+  }
+
+  /**
+   * Wait for async initialization to complete (useful for tests)
+   */
+  async waitForInit(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
     }
   }
 
@@ -158,6 +183,9 @@ export class ToolPolicyService {
 
   /**
    * Create or update a custom tool policy
+   *
+   * @param policy - The tool policy to save
+   * @throws ValidationError if policy validation fails or policy limit is reached
    */
   async savePolicy(policy: ToolPolicy): Promise<void> {
     this.validatePolicy(policy);
@@ -187,6 +215,9 @@ export class ToolPolicyService {
 
   /**
    * Delete a custom tool policy (cannot delete defaults)
+   *
+   * @param role - The role name of the policy to delete
+   * @throws ValidationError if attempting to delete a default policy
    */
   async deletePolicy(role: string): Promise<void> {
     const normalizedRole = role.trim().toLowerCase();
@@ -208,18 +239,34 @@ export class ToolPolicyService {
   /**
    * Validate tool access for a role
    * Returns true if the tool is allowed, false if denied
+   *
+   * Security Note: This method follows a fail-open pattern. When no policy exists
+   * for a role, all tools are allowed. This design choice enables:
+   * 1. Backward compatibility with workflows that don't specify roles
+   * 2. Graceful degradation if a custom role is deleted
+   * 3. Developer-friendly defaults (restrictive policies must be explicit)
+   *
+   * To enforce restrictive-by-default security:
+   * 1. Always specify agent roles in workflow definitions
+   * 2. Ensure all custom roles have policies defined
+   * 3. Monitor logs for "No policy found" warnings
    */
   async validateToolAccess(role: string, tool: string): Promise<boolean> {
     const policy = await this.getToolPolicy(role);
 
     if (!policy) {
-      // No policy defined for this role - allow all tools (permissive default)
-      log.warn({ role, tool }, 'No policy found for role - allowing all tools');
+      // No policy defined for this role - allow all tools (fail-open pattern)
+      // This enables backward compatibility and graceful degradation
+      log.warn(
+        { role, tool },
+        'No policy found for role - allowing all tools (fail-open). Define a policy for this role to enforce restrictions.'
+      );
       return true;
     }
 
-    // Denied list takes precedence
+    // Denied list takes precedence over allowed list
     if (policy.denied.includes(tool)) {
+      log.debug({ role, tool }, 'Tool access denied by policy');
       return false;
     }
 
@@ -230,12 +277,19 @@ export class ToolPolicyService {
     }
 
     // Explicit allow
-    return policy.allowed.includes(tool);
+    const allowed = policy.allowed.includes(tool);
+    if (!allowed) {
+      log.debug({ role, tool, allowedTools: policy.allowed }, 'Tool not in allowed list');
+    }
+    return allowed;
   }
 
   /**
    * Get the OpenClaw tool filter configuration for a role
-   * Returns the allowed/denied tool names that can be passed to OpenClaw
+   * Returns the allowed/denied tool names that can be passed to OpenClaw sessions API
+   *
+   * @param role - The agent role to get the tool filter for
+   * @returns Object with optional `allowed` and `denied` arrays. Empty object if no restrictions.
    */
   async getToolFilterForRole(role: string): Promise<{ allowed?: string[]; denied?: string[] }> {
     const policy = await this.getToolPolicy(role);
@@ -310,11 +364,11 @@ export class ToolPolicyService {
   }
 
   /**
-   * Clear the cache (useful for tests)
+   * Clear the cache and reload defaults (useful for tests)
    */
   clearCache(): void {
     this.cache.clear();
-    this.loadDefaults();
+    this.loadDefaultsToCache();
   }
 }
 
