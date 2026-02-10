@@ -89,7 +89,7 @@ export function WorkflowRunView({ runId, onBack }: WorkflowRunViewProps) {
   // Fetch run details
   const fetchRun = useCallback(async () => {
     try {
-      const response = await fetch(`/api/workflow-runs/${runId}`);
+      const response = await fetch(`/api/workflows/runs/${runId}`);
       if (!response.ok) throw new Error('Failed to fetch workflow run');
       const json = await response.json();
       setRun(json.data ?? json);
@@ -161,7 +161,7 @@ export function WorkflowRunView({ runId, onBack }: WorkflowRunViewProps) {
 
   const handleResume = async () => {
     try {
-      const response = await fetch(`/api/workflow-runs/${runId}/resume`, {
+      const response = await fetch(`/api/workflows/runs/${runId}/resume`, {
         method: 'POST',
       });
 

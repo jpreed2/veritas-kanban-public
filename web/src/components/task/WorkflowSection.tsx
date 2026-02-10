@@ -64,7 +64,7 @@ export function WorkflowSection({ task, open, onOpenChange }: WorkflowSectionPro
         }
 
         // Fetch active runs for this task
-        const runsRes = await fetch(`/api/workflow-runs?taskId=${task.id}`);
+        const runsRes = await fetch(`/api/workflows/runs?taskId=${task.id}`);
         if (runsRes.ok) {
           const rJson = await runsRes.json();
           const runs = rJson.data ?? rJson;

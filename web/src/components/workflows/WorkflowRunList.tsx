@@ -57,7 +57,7 @@ export function WorkflowRunList({ workflowId, onBack }: WorkflowRunListProps) {
   useEffect(() => {
     const fetchRuns = async () => {
       try {
-        const response = await fetch(`/api/workflow-runs?workflowId=${workflowId}`);
+        const response = await fetch(`/api/workflows/runs?workflowId=${workflowId}`);
         if (!response.ok) throw new Error('Failed to fetch workflow runs');
         const json = await response.json();
         setRuns(json.data ?? json);

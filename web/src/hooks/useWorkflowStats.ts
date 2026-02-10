@@ -43,15 +43,15 @@ export interface WorkflowStats {
 const API_BASE = '/api';
 
 async function fetchWorkflowStats(period: WorkflowPeriod): Promise<WorkflowStats> {
-  return apiFetch<WorkflowStats>(`${API_BASE}/workflow-runs/stats?period=${period}`);
+  return apiFetch<WorkflowStats>(`${API_BASE}/workflows/runs/stats?period=${period}`);
 }
 
 async function fetchActiveRuns(): Promise<WorkflowRun[]> {
-  return apiFetch<WorkflowRun[]>(`${API_BASE}/workflow-runs/active`);
+  return apiFetch<WorkflowRun[]>(`${API_BASE}/workflows/runs/active`);
 }
 
 async function fetchRecentRuns(): Promise<WorkflowRun[]> {
-  return apiFetch<WorkflowRun[]>(`${API_BASE}/workflow-runs`);
+  return apiFetch<WorkflowRun[]>(`${API_BASE}/workflows/runs`);
 }
 
 /**
