@@ -241,6 +241,56 @@ router.post(
 );
 
 /**
+ * GET /api/workflow-runs/active — Get currently running workflow runs
+ * IMPORTANT: This route MUST come before /runs/:id to avoid path conflicts
+ */
+router.get(
+  '/runs/active',
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = getUserId(req);
+
+    const runs = await workflowRunService.listRunsMetadata({
+      status: 'running',
+    });
+
+    // Filter by workflow view permissions
+    const visibleRuns = [];
+    for (const run of runs) {
+      const hasPermission = await checkWorkflowPermission(run.workflowId, userId, 'view');
+      if (hasPermission) {
+        visibleRuns.push(run);
+      }
+    }
+
+    res.json(visibleRuns);
+  })
+);
+
+/**
+ * GET /api/workflow-runs/stats — Get aggregated workflow run statistics
+ * IMPORTANT: This route MUST come before /runs/:id to avoid path conflicts
+ */
+router.get(
+  '/runs/stats',
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = getUserId(req);
+    const periodParam = typeof req.query.period === 'string' ? req.query.period : '7d';
+
+    // Validate period
+    if (!['24h', '7d', '30d'].includes(periodParam)) {
+      throw new ValidationError(`Invalid period: ${periodParam}. Allowed values: 24h, 7d, 30d`);
+    }
+
+    const period = periodParam as '24h' | '7d' | '30d';
+
+    // Get stats from service layer (handles permission filtering internally)
+    const stats = await workflowRunService.getStats(period, userId);
+
+    res.json(stats);
+  })
+);
+
+/**
  * GET /api/workflow-runs — List workflow runs (filtered by permissions)
  * Returns metadata only for efficiency
  */
