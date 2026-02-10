@@ -24,6 +24,7 @@ services:
       - VERITAS_ADMIN_KEY=demo-admin-key-for-product-hunt-2026
       - VERITAS_AUTH_LOCALHOST_BYPASS=true
       - VERITAS_AUTH_LOCALHOST_ROLE=admin
+      - VERITAS_AUTH_ENABLED=false
       - CORS_ORIGINS=http://localhost:3099
     volumes:
       # Separate data volume for demo instance

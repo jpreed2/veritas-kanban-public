@@ -1,6 +1,6 @@
 import { useFeatureSettings, useDebouncedFeatureUpdate } from '@/hooks/useFeatureSettings';
 import { DEFAULT_FEATURE_SETTINGS } from '@veritas-kanban/shared';
-import { SettingRow, ToggleRow, SectionHeader, SaveIndicator } from '../shared';
+import { ToggleRow, SectionHeader, SaveIndicator } from '../shared';
 
 export function EnforcementTab() {
   const { settings } = useFeatureSettings();
