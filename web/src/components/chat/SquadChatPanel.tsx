@@ -288,7 +288,10 @@ const SquadMessageBubble = React.memo(function SquadMessageBubble({
   message,
   humanDisplayName,
 }: SquadMessageBubbleProps) {
-  const colorClass = agentColors[message.agent] || agentColors.VERITAS;
+  // Case-insensitive agent color lookup
+  const colorClass = agentColors[message.agent] 
+    || Object.entries(agentColors).find(([k]) => k.toLowerCase() === message.agent?.toLowerCase())?.[1]
+    || agentColors.VERITAS;
   const isHuman = message.agent === 'Human';
   // Use the display name for Human agents, otherwise use the agent name
   const displayName = isHuman ? humanDisplayName : message.agent;
