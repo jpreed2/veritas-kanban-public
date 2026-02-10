@@ -8,7 +8,7 @@
  * - Per-workflow health metrics
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -73,27 +73,33 @@ export function WorkflowDashboard({ onBack }: WorkflowDashboardProps) {
     error: recentRunsError,
   } = useRecentRuns();
 
-  // Show toast on errors
-  if (statsError) {
-    toast({
-      title: '❌ Failed to load workflow stats',
-      description: statsError instanceof Error ? statsError.message : 'Unknown error',
-    });
-  }
+  // Show toast on errors (in useEffect to avoid infinite render loop)
+  useEffect(() => {
+    if (statsError) {
+      toast({
+        title: '❌ Failed to load workflow stats',
+        description: statsError instanceof Error ? statsError.message : 'Unknown error',
+      });
+    }
+  }, [statsError, toast]);
 
-  if (activeRunsError) {
-    toast({
-      title: '❌ Failed to load active runs',
-      description: activeRunsError instanceof Error ? activeRunsError.message : 'Unknown error',
-    });
-  }
+  useEffect(() => {
+    if (activeRunsError) {
+      toast({
+        title: '❌ Failed to load active runs',
+        description: activeRunsError instanceof Error ? activeRunsError.message : 'Unknown error',
+      });
+    }
+  }, [activeRunsError, toast]);
 
-  if (recentRunsError) {
-    toast({
-      title: '❌ Failed to load recent runs',
-      description: recentRunsError instanceof Error ? recentRunsError.message : 'Unknown error',
-    });
-  }
+  useEffect(() => {
+    if (recentRunsError) {
+      toast({
+        title: '❌ Failed to load recent runs',
+        description: recentRunsError instanceof Error ? recentRunsError.message : 'Unknown error',
+      });
+    }
+  }, [recentRunsError, toast]);
 
   // WebSocket subscription for live updates
   const handleWebSocketMessage = useCallback(
