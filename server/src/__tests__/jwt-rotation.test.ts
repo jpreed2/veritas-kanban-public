@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
-// We need to mock the filesystem and env before importing the module
-const mockFs: Record<string, string> = {};
+// vi.hoisted runs before vi.mock hoisting — makes mockFs available to the mock factory
+const mockFs: Record<string, string> = vi.hoisted(() => ({}));
 
 vi.mock('fs', () => {
   const impl = {
