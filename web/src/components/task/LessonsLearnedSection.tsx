@@ -71,8 +71,8 @@ export function LessonsLearnedSection({
   };
 
   return (
-    <div className="space-y-4 rounded-lg border border-amber-300 bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 p-4">
-      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+    <div className="space-y-4 rounded-lg border border-violet-300 bg-violet-100 dark:border-violet-800 dark:bg-violet-950/40 p-4">
+      <div className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
         <Lightbulb className="h-5 w-5" />
         <h3 className="font-semibold">Lessons Learned</h3>
       </div>
