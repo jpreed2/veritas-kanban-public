@@ -218,7 +218,7 @@ export function MarkdownEditor({
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className={cn('resize-none')}
+          className={cn('resize-y')}
           style={{ minHeight, maxHeight }}
           disabled={disabled}
         />
