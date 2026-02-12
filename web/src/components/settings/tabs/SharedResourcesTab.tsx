@@ -18,7 +18,7 @@ export function SharedResourcesTab() {
   const { settings } = useFeatureSettings();
   const { debouncedUpdate, isPending } = useDebouncedFeatureUpdate();
 
-  const sharedResources = settings.sharedResources;
+  const sharedResources = settings?.sharedResources ?? DEFAULT_FEATURE_SETTINGS.sharedResources;
 
   const updateSharedResources = (patch: Record<string, any>) => {
     debouncedUpdate({ sharedResources: patch });
