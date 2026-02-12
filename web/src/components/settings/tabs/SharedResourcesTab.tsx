@@ -21,7 +21,7 @@ export function SharedResourcesTab() {
   const sharedResources = settings?.sharedResources ?? DEFAULT_FEATURE_SETTINGS.sharedResources;
 
   const updateSharedResources = (patch: Record<string, any>) => {
-    debouncedUpdate({ sharedResources: patch });
+    debouncedUpdate({ sharedResources: { ...sharedResources, ...patch } });
   };
 
   const resetSharedResources = () => {

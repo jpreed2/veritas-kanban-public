@@ -7,7 +7,7 @@ export function DocFreshnessTab() {
   const { debouncedUpdate, isPending } = useDebouncedFeatureUpdate();
 
   const update = (key: string, value: boolean | number) => {
-    debouncedUpdate({ docFreshness: { [key]: value } });
+    debouncedUpdate({ docFreshness: { ...docFreshness, [key]: value } });
   };
 
   const resetDocFreshness = () => {
