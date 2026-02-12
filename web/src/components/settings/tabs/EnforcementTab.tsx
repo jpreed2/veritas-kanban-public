@@ -29,7 +29,7 @@ export function EnforcementTab() {
       </p>
 
       <div className="space-y-4 mt-6">
-        <div className="divide-y">
+        <div className="space-y-3">
           <div>
             <ToggleRow
               label="Review Gate"
@@ -38,18 +38,20 @@ export function EnforcementTab() {
               onCheckedChange={(v) => updateEnforcement('reviewGate', v)}
             />
             {enforcement.reviewGate && (
-              <p className="text-xs text-muted-foreground bg-muted rounded-md px-3 py-2 mx-1 -mt-1 mb-3">
-                ⚠️ Code task types only (code, bug, feature, automation, system). Non-code tasks
-                skip this gate.
-              </p>
+              <div className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2 mt-2 ml-1">
+                ℹ️ Applies to code task types only (code, bug, feature, automation, system).
+                Non-code tasks can be completed without review scores.
+              </div>
             )}
           </div>
-          <ToggleRow
-            label="Closing Comments"
-            description="Require deliverable summary before task completion"
-            checked={enforcement.closingComments ?? false}
-            onCheckedChange={(v) => updateEnforcement('closingComments', v)}
-          />
+          <div className="border-t pt-3">
+            <ToggleRow
+              label="Closing Comments"
+              description="Require deliverable summary before task completion"
+              checked={enforcement.closingComments ?? false}
+              onCheckedChange={(v) => updateEnforcement('closingComments', v)}
+            />
+          </div>
         </div>
       </div>
 
